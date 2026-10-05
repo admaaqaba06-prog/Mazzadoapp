@@ -1032,6 +1032,7 @@ export const AdminDashboardView: React.FC = () => {
               onUnban={unbanUser}
               currentUserId={currentUser?.id}
               currentUserEmail={currentUser?.email}
+              totalAccounts={usersTotalCount}
             />
           </React.Suspense>
         )}

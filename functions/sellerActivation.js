@@ -29,7 +29,23 @@ const STORE_ABOUT = {
   ar: 'أهلاً بكم في متجري الخاص على مزادو.',
   en: 'Welcome to my store on MAZZADO.',
 };
-const STORE_LOCATION = { ar: 'عمان، الأردن', en: 'Amman, Jordan' };
+/**
+ * ⚠️ DELETED, NOT EDITED: `STORE_LOCATION = {ar:'عمان، الأردن', en:'Amman, Jordan'}`.
+ *
+ * Seller activation stamped that constant onto `location` for every new seller,
+ * on a document that is `allow read: if true`. It was not a display fallback —
+ * it was a fabricated fact PERSISTED to a public profile, so every seller on
+ * the platform, in Irbid or Aqaba or anywhere else, was published as being in
+ * Amman. A buyer choosing a seller by proximity was reading an invention.
+ *
+ * The irony is three lines below: that comment refuses to seed a rating or a
+ * verified badge because doing so "would be fabricated reputation on a publicly
+ * readable profile". A fabricated location is the same thing.
+ *
+ * A seller now states their own governorate in the seller-centre form, and
+ * until they do the field is empty and the profile simply shows no location.
+ * Do not reintroduce a default here.
+ */
 
 function storeNameFor(name, lang) {
   const clean = typeof name === 'string' ? name.trim() : '';
@@ -84,7 +100,8 @@ async function activateSeller(deps, args = {}) {
         storeLogo: u.avatar || '',
         coverImage: '',
         bio: STORE_ABOUT[lang] || STORE_ABOUT.en,
-        location: STORE_LOCATION[lang] || STORE_LOCATION.en,
+        // Empty until the seller states it themselves. See the note above.
+        location: '',
         // A brand-new seller has sold nothing and is not verified. Seeding a
         // rating or a verified badge here would be fabricated reputation on a
         // publicly readable profile (sellerProfiles is `allow read: if true`).
