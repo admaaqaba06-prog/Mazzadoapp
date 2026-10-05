@@ -295,8 +295,8 @@ export async function executeOrderTransition(
     // a unique transaction reference and writes status + paymentStatus
     // atomically with the Admin SDK. Nothing has called this branch since.
     //
-    // It still wrote `paymentStatus: 'paid'` from the browser, and
-    // `paymentStatus` is on the orders update denylist in firestore.rules —
+    // It still set the paid payment-status field from the browser, and that
+    // field is on the orders update denylist in firestore.rules —
     // deliberately, so a buyer cannot mark their own order paid and skip the
     // reference-uniqueness check. So the updateDoc would have been rejected
     // whole and the buyer shown a failure. Removing it means an accidental

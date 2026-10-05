@@ -27,14 +27,40 @@ import { ROOT, sourceFiles, stripComments, assertNonEmpty } from './sourceFiles'
 const CODE_EXTS = /\.(ts|tsx|js|jsx|cjs|mjs)$/;
 
 /**
- * LOCAL PART and uid only.
+ * The needles are READ FROM THE SEMGREP RULE, never written here.
  *
- * firestore.rules wrote the address escaped for its own regex engine —
- * `admaaqaba06@gmail\\.com` — so a needle containing `@gmail.com` matched none
- * of those occurrences while appearing to cover them. Grepping the plain
- * address in that file returned zero hits. The local part has no such problem.
+ * They used to be a second copy of the list in .semgrep/mazzado.yml. Two
+ * copies of "what counts as the hardcoded identity" drift, and they drift
+ * silently: a needle added to the rule and not here would be enforced only in
+ * CI, one added here and not there only on a developer's machine.
+ *
+ * It also stops this file being the last place in the repository that still
+ * contains the literal. The rule flagged it, correctly, the first time the
+ * gate ran — a guard whose own rationale trips the guard is a mistake this
+ * repo has made before, and the answer is to stop repeating the value, not to
+ * add an exclusion for it.
+ *
+ * LOCAL PART AND UID ONLY, which is the rule's own choice: firestore.rules
+ * writes the address escaped for its regex engine, so a needle carrying the
+ * mail domain matches none of those occurrences while appearing to cover them.
  */
-const FORBIDDEN = ['admaaqaba06', 'wtu2pG6X6Jc0mvhyKBCUsca2X0A2'];
+function forbiddenFromRule(): string[] {
+  const rule = readFileSync(join(ROOT, '.semgrep', 'mazzado.yml'), 'utf8');
+  const at = rule.indexOf('id: mazzado-hardcoded-admin-identity');
+  if (at === -1) throw new Error('the admin-identity rule is gone from .semgrep/mazzado.yml');
+  const m = rule.slice(at).match(/pattern-regex:\s*\(([^)]+)\)/);
+  if (!m) throw new Error('could not read the admin-identity pattern out of .semgrep/mazzado.yml');
+  const needles = m[1].split('|').map((s) => s.trim()).filter(Boolean);
+  if (needles.length < 2) {
+    throw new Error(
+      `parsed ${needles.length} needle(s) from the rule; expected at least the address and the uid. `
+      + 'A sweep with nothing to look for passes without reading anything.',
+    );
+  }
+  return needles;
+}
+
+const FORBIDDEN = forbiddenFromRule();
 
 const RULES_FILES = ['firestore.rules', 'storage.rules'];
 
@@ -56,8 +82,6 @@ describe('the hardcoded administrator stays removed', () => {
   it('appears in no source file, no Cloud Function and no script', () => {
     const offenders: string[] = [];
     for (const file of codeFiles()) {
-      // This test file names the literals; it is the rationale, not a breach.
-      if (file.replace(/\\/g, '/').endsWith('src/constants/adminIdentity.test.ts')) continue;
       const src = readFileSync(file, 'utf8');
       for (const needle of FORBIDDEN) {
         if (src.includes(needle)) offenders.push(`${relative(ROOT, file)} -> ${needle}`);
@@ -104,6 +128,9 @@ describe('one source of truth for the role', () => {
     const offenders: string[] = [];
     for (const file of codeFiles()) {
       const rel = relative(ROOT, file).replace(/\\/g, '/');
+      // This file is the one exception, and only here: the pattern below is
+      // written out as a regex literal, so scanning this file would match the
+      // search term itself. The literal sweep above does NOT skip it.
       if (rel.endsWith('src/constants/adminIdentity.test.ts')) continue;
       const src = stripComments(readFileSync(file, 'utf8'), file);
       if (/\btoken\.admin\b/.test(src) || /\bclaims\.admin\b/.test(src)) offenders.push(rel);
@@ -162,7 +189,11 @@ describe('the SAST gate', () => {
   it('still has the rule that catches a reintroduced literal', () => {
     const rules = read('.semgrep/mazzado.yml');
     expect(rules).toMatch(/id: mazzado-hardcoded-admin-identity/);
-    for (const needle of FORBIDDEN) expect(rules).toContain(needle);
+    // Asserting the rule contains FORBIDDEN would be circular — FORBIDDEN is
+    // parsed out of it. What is worth pinning is that the rule still names
+    // more than one thing: narrowed to nothing, every sweep above would pass
+    // by having nothing to look for.
+    expect(FORBIDDEN.length).toBeGreaterThanOrEqual(2);
     // `generic` is what lets it read firestore.rules and storage.rules, which
     // are not JavaScript and which held five of the occurrences.
     expect(rules).toMatch(/languages: \[generic\]/);
