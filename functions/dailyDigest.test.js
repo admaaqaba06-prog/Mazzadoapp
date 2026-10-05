@@ -16,6 +16,7 @@ import {
   QUIET_START_HOUR,
   QUIET_END_HOUR,
   DAILY_CAP_MS,
+  CHEAP_MAX_JOD,
 } from './dailyDigest.js';
 
 /** Build an epoch ms for a given Amman wall-clock time on 2026-09-12. */
@@ -112,7 +113,13 @@ describe('interest matching', () => {
 });
 
 describe('picking auctions', () => {
-  const lot = (id, category, totalBids, createdAtMs = 0) => ({ id, category, totalBids, createdAtMs });
+  // `currentPrice` defaults to a cheap lot so these stay tests of ORDERING and
+  // capping. pickForUser now drops anything above CHEAP_MAX_JOD before it sorts
+  // — without a price these fixtures are all filtered out and every assertion
+  // below reads as "returned nothing", which says nothing about ordering. The
+  // price filter has its own tests further down.
+  const lot = (id, category, totalBids, createdAtMs = 0, currentPrice = 5) =>
+    ({ id, category, totalBids, createdAtMs, currentPrice });
 
   it('leads with the most-bid lot', () => {
     const { picks } = pickForUser(
@@ -278,5 +285,60 @@ describe('run summary', () => {
         'skippedOptedOut',
       ].sort(),
     );
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Only cheap lots earn a WhatsApp message.
+//
+// The digest used to message people about every fresh lot in their categories
+// at any price. A ping is a favour, and a favour spent on a 400 JOD wardrobe is
+// why people mute a sender. The ceiling is CHEAP_MAX_JOD in dailyDigest.js.
+describe('price filter', () => {
+  const priced = (id, currentPrice, extra = {}) =>
+    ({ id, category: 'Vehicles', totalBids: 1, createdAtMs: 0, currentPrice, ...extra });
+
+  it('keeps lots at or under the ceiling', () => {
+    const { picks } = pickForUser([priced('cheap', 5), priced('edge', CHEAP_MAX_JOD)], ['Vehicles']);
+    expect(picks.map((p) => p.id).sort()).toEqual(['cheap', 'edge']);
+  });
+
+  it('drops a lot above the ceiling', () => {
+    const { picks, matchedCount } = pickForUser([priced('pricey', CHEAP_MAX_JOD + 1)], ['Vehicles']);
+    expect(picks).toEqual([]);
+    // Not counted as matched either — it was never a candidate.
+    expect(matchedCount).toBe(0);
+  });
+
+  it('judges on the CURRENT price, not the starting price', () => {
+    // A lot that opened at 1 JOD and has been bid to 300 is not a bargain, and
+    // "يبدأ من 1 دينار" beside a live price of 300 reads as bait.
+    const bidUp = { id: 'bidUp', category: 'Vehicles', totalBids: 40, createdAtMs: 0, startingPrice: 1, currentPrice: 300 };
+    expect(pickForUser([bidUp], ['Vehicles']).picks).toEqual([]);
+  });
+
+  it('falls back to the starting price for a lot with no bids yet', () => {
+    const fresh = { id: 'fresh', category: 'Vehicles', totalBids: 0, createdAtMs: 0, startingPrice: 3 };
+    expect(pickForUser([fresh], ['Vehicles']).picks.map((p) => p.id)).toEqual(['fresh']);
+  });
+
+  it('reads fils fields when that is what the doc carries', () => {
+    const inFils = { id: 'fils', category: 'Vehicles', totalBids: 0, createdAtMs: 0, currentPriceFils: 7000 };
+    expect(pickForUser([inFils], ['Vehicles']).picks.map((p) => p.id)).toEqual(['fils']);
+  });
+
+  it('does NOT assume a lot with no usable price is cheap', () => {
+    // Fail closed: messaging someone about a lot we cannot price is worse than
+    // staying quiet, and a missing price usually means a malformed doc.
+    for (const bad of [{}, { currentPrice: 0 }, { currentPrice: -5 }, { currentPrice: 'x' }]) {
+      const l = { id: 'bad', category: 'Vehicles', totalBids: 0, createdAtMs: 0, ...bad };
+      expect(pickForUser([l], ['Vehicles']).picks, `accepted ${JSON.stringify(bad)}`).toEqual([]);
+    }
+  });
+
+  it('filters on price BEFORE interests, so an expensive lot reaches nobody', () => {
+    const l = priced('pricey', 999);
+    expect(pickForUser([l], ['Vehicles']).picks).toEqual([]);
+    expect(pickForUser([l], []).picks).toEqual([]);
   });
 });

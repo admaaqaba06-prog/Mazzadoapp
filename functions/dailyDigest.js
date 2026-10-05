@@ -142,15 +142,56 @@ function startingPriceUnits(a) {
 }
 
 /**
+ * The ceiling, in dinars, above which a lot is not worth a WhatsApp message.
+ *
+ * ⚠️ THIS NUMBER IS A PRODUCT DECISION, not a technical one. It decides how many
+ * messages go out, and the digest reaches real phones. Change it here and
+ * nowhere else.
+ *
+ * The digest used to message people about every fresh lot in their categories,
+ * at any price. The instruction is now: notify about a CHEAP lot, and otherwise
+ * stay quiet — a WhatsApp ping is a favour, and a favour spent on a 400 JOD
+ * wardrobe is the reason people mute a sender.
+ */
+const CHEAP_MAX_JOD = 25;
+
+/**
+ * Is this lot still cheap RIGHT NOW?
+ *
+ * Current price, not starting price. A lot that opened at 1 JOD and has been
+ * bid to 300 is not a bargain any more, and "يبدأ من 1 دينار" next to a live
+ * price of 300 is the kind of message that reads as bait. Falls back to the
+ * starting price only when no current price is stored — a brand-new lot with no
+ * bids, where the two are the same thing.
+ */
+function currentPriceUnits(a) {
+  if (a && typeof a.currentPriceFils === 'number') return a.currentPriceFils / 1000;
+  if (a && typeof a.currentPrice === 'number' && a.currentPrice > 0) return a.currentPrice;
+  return startingPriceUnits(a);
+}
+
+function isCheapLot(a, maxJod = CHEAP_MAX_JOD) {
+  const price = currentPriceUnits(a);
+  // A lot with no usable price is NOT assumed cheap. Guessing in the permissive
+  // direction here means messaging someone about a lot we cannot price.
+  if (!Number.isFinite(price) || price <= 0) return false;
+  return price <= maxJod;
+}
+
+/**
  * Which auctions this user gets, and how many were left over.
  *
  * Ordered by bid count descending — the spec's rule, and a good one: the lot
  * other people are already bidding on is the one worth leading with. Ties break
  * on the newer lot so the order is deterministic; without a tiebreak two runs
  * over the same data can disagree, which makes the log impossible to read.
+ *
+ * PRICE FILTER FIRST, before interests: a lot that is too expensive is not sent
+ * to anyone, whatever their categories say.
  */
 function pickForUser(auctions, interests, max = MAX_AUCTIONS_PER_MESSAGE) {
-  const matched = (auctions || []).filter((a) => matchesInterests(a && a.category, interests));
+  const affordable = (auctions || []).filter((a) => isCheapLot(a));
+  const matched = affordable.filter((a) => matchesInterests(a && a.category, interests));
   matched.sort((x, y) => {
     const bx = typeof x.totalBids === 'number' ? x.totalBids : 0;
     const by = typeof y.totalBids === 'number' ? y.totalBids : 0;
@@ -331,6 +372,9 @@ module.exports = {
   matchValues,
   matchesInterests,
   startingPriceUnits,
+  currentPriceUnits,
+  isCheapLot,
+  CHEAP_MAX_JOD,
   pickForUser,
   logKey,
   isCapped,
