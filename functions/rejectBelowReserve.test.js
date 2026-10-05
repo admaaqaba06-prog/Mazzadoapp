@@ -67,7 +67,11 @@ describe('authorization is server-derived', () => {
 
   it('compares against the AUCTION DOC\'s sellerId, not a client-supplied one', () => {
     expect(reject).toContain('const isSeller = auctionData.sellerId && auctionData.sellerId === callerUserId;');
-    expect(reject).toContain('callerIsAdmin(callerData, tokenEmail)');
+    // One argument, not two. The second used to be the caller's token email,
+    // compared against a hardcoded address — a second source of truth that
+    // outranked the role record and could not be revoked without a deploy.
+    expect(reject).toContain('callerIsAdmin(callerData)');
+    expect(reject).not.toMatch(/tokenEmail/);
     expect(reject).toContain("'permission-denied'");
   });
 

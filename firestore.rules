@@ -11,18 +11,29 @@ service cloud.firestore {
       return request.auth != null && request.auth.uid == uid;
     }
 
+    /**
+     * Administrative access, from ONE record: users/{uid}.
+     *
+     * This also accepted a hardcoded uid and a hardcoded email address. Both
+     * are gone. A literal identity cannot be revoked without a deploy, it
+     * outlives whoever held it, and it is legible to anyone who can read the
+     * repository — which is precisely what an access-control review asks you
+     * not to have.
+     *
+     * `role` is the canonical field; `isAdmin` is the older mirror of it and
+     * both writers (grantAdminRole and the bootstrap script) set the two
+     * together. storage.rules reads `role` alone, so DO NOT hand-edit a user
+     * document to set only `isAdmin` — that account would pass here and be
+     * refused payment proofs in Storage.
+     */
     function isAdmin() {
-      return request.auth != null && (
-        request.auth.uid == 'wtu2pG6X6Jc0mvhyKBCUsca2X0A2' ||
-        (request.auth.token != null && 'email' in request.auth.token && 
-          request.auth.token.email.matches('(?i)admaaqaba06@gmail\\.com')) ||
-        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && (
-          ('role' in get(/databases/$(database)/documents/users/$(request.auth.uid)).data && 
+      return request.auth != null &&
+        exists(/databases/$(database)/documents/users/$(request.auth.uid)) && (
+          ('role' in get(/databases/$(database)/documents/users/$(request.auth.uid)).data &&
            get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin') ||
-          ('isAdmin' in get(/databases/$(database)/documents/users/$(request.auth.uid)).data && 
+          ('isAdmin' in get(/databases/$(database)/documents/users/$(request.auth.uid)).data &&
            get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true)
-        ))
-      );
+        );
     }
 
     // S3 — subscription-grant fields are written ONLY by Cloud Functions
@@ -150,17 +161,18 @@ service cloud.firestore {
             && request.resource.data.phoneNumber == request.auth.token.phone_number
             && (!('email' in request.resource.data) || request.resource.data.email == '' || request.resource.data.email == null))
         ) &&
-        (
-          request.resource.data.role == 'user' ||
-          (request.resource.data.role == 'admin' && 'email' in request.auth.token && request.auth.token.email.matches('(?i)admaaqaba06@gmail\\.com'))
-        );
+        // A client may only ever create ITSELF as a plain user. There was an
+        // exception here letting one hardcoded address create its own
+        // document with role:'admin' — a self-promotion path written into
+        // the rules, and the reason the browser could bootstrap its own
+        // privilege on sign-in. Admin is granted afterwards, by an
+        // administrator, through grantAdminRole.
+        request.resource.data.role == 'user';
       allow update: if request.auth != null &&
         // S3 — subscription grants are server-only for EVERY client, admin
         // included (see touchesSubscriptionGrantFields above).
         !touchesSubscriptionGrantFields() && (
         isAdmin() ||
-        (request.auth.token != null && 'email' in request.auth.token &&
-          request.auth.token.email.matches('(?i)admaaqaba06@gmail\\.com')) ||
         (request.auth.uid == userId &&
           !request.resource.data.diff(resource.data).affectedKeys().hasAny([
             'role', 'isAdmin', 'isBlocked', 'isVerified', 'isSeller', 'wonCount',
@@ -180,14 +192,19 @@ service cloud.firestore {
           // absent/''/null because the phone-signup create rule allows all three.
           // Untouched email (any state, incl. missing key) is checked via
           // affectedKeys so docs without an email field can still self-update.
-          // The claimed email may NEVER be the admin address (same case-insensitive
-          // pattern isAdmin() uses) — ~25 client gates treat doc email == admin
-          // address as an admin-UI credential, so claiming it would spoof admin UI.
+          //
+          // The claimed address used to be checked against the admin email,
+          // because client gates read the DOC's email field — which its own
+          // owner writes — as an admin credential. No gate does that any
+          // more: isAdminUser() in src/utils/adminAuth.ts reads role/isAdmin
+          // and nothing else, and no address is privileged in these rules, in
+          // storage.rules, in the Cloud Functions or in the client. The
+          // special case has nothing left to protect, so it goes with the
+          // rest of the literal.
           (
             !request.resource.data.diff(resource.data).affectedKeys().hasAny(['email']) ||
             ((!('email' in resource.data) || resource.data.email == '' || resource.data.email == null) &&
-              request.resource.data.email is string &&
-              !request.resource.data.email.matches('(?i)admaaqaba06@gmail\\.com'))
+              request.resource.data.email is string)
           )
         )
       );

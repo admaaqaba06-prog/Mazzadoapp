@@ -101,7 +101,47 @@ rules:
       Bank names must come from CLIQ_BANK_NAME_AR/EN, never a literal. The
       account has moved banks twice; each time, literals left behind in copy
       told customers to look for their money at the wrong bank.
-    pattern-regex: (Bank al Etihad|Jordan Ahli Bank|Al Ahli Bank)
+    # QUOTE PROXIMITY, not the bare name.
+    #
+    # The bare name matched seven doc comments that legitimately name the
+    # integration partner ("Embedded CliQ (Bank al Etihad / Staq)") and
+    # nothing else: seven false positives, zero true ones. A rule with that
+    # record does not get read, it gets muted. Requiring an opening quote
+    # earlier on the SAME line, with no quote in between, keeps the string
+    # literals and drops the prose.
+    #
+    # WHAT IT MISSES: a bank name as bare JSX text, <p>Bank al Etihad</p>.
+    # Stated plainly, because a rule you believe is airtight is more
+    # dangerous than one whose edges you know. The real guard is
+    # src/constants/brandBoundary.test.ts, which asserts the constants and
+    # that no other bank's name reaches the payment copy. This is the cheap
+    # second net, not the floor.
+    pattern-regex: |-
+      ['"`][^'"`\n]{0,160}(Bank al Etihad|Jordan Ahli Bank|Al Ahli Bank)
+    paths:
+      include:
+        - src/
+      exclude:
+        - src/constants/cliq.ts
+        - src/constants/cliqGateway.ts
+        - src/utils/cliqIban.ts
+        - src/components/SellerCenterView.tsx
+        - '*.test.*'
+
+  # -------------------------------------------------------------------------
+  - id: mazzado-bank-name-literal-ar
+    languages: [generic]
+    severity: WARNING
+    message: >-
+      Arabic bank name as a literal. Use CLIQ_BANK_NAME_AR. This is the name a
+      Jordanian customer actually reads on the transfer screen, so a stale one
+      here is the version that sends somebody to the wrong bank.
+    # Separate from the English rule ONLY so each pattern line is
+    # single-direction text. An RTL alternation inside an LTR regex renders in
+    # an order that does not match the bytes, and a reviewer cannot see where
+    # the | separators actually fall.
+    pattern-regex: |-
+      ['"`][^'"`\n]{0,160}(بنك الاتحاد|البنك الأهلي)
     paths:
       include:
         - src/

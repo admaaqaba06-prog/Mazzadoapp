@@ -52,10 +52,17 @@ function die(msg) {
   process.exit(1);
 }
 
-if (!email) {
-  die('Usage: node scripts/admin/grant-admin.cjs <email> [--apply]');
+// Either identifier is enough, and --uid is the one that works for a
+// phone-only account. Validating `email` unconditionally is what made the
+// documented --uid form die on its own usage message.
+if (!uidArg && !email) {
+  die(
+    'Usage:\n' +
+    '      node scripts/admin/grant-admin.cjs <email> [--apply]\n' +
+    '      node scripts/admin/grant-admin.cjs --uid <firebase-uid> [--apply]'
+  );
 }
-if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) {
+if (!uidArg && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) {
   die(`"${email}" does not look like an email address.`);
 }
 if (!process.env.GOOGLE_APPLICATION_CREDENTIALS) {
@@ -79,10 +86,10 @@ const auth = admin.auth();
 
   let user;
   try {
-    user = await auth.getUserByEmail(email);
+    user = uidArg ? await auth.getUser(uidArg) : await auth.getUserByEmail(email);
   } catch (e) {
     die(
-      `No account exists for ${email}.\n` +
+      `No account exists for ${uidArg ? 'uid ' + uidArg : email}.\n` +
       '    They must sign in to the app once before a role can be attached to them.'
     );
   }
@@ -127,7 +134,7 @@ const auth = admin.auth();
   });
   await batch.commit();
 
-  console.log(`\n  ✔ ${email} is now an administrator (role + audit row written).`);
+  console.log(`\n  ✔ ${user.email || user.phoneNumber || user.uid} is now an administrator (role + audit row written).`);
   console.log('    Sign out and back in, then confirm BOTH the admin panel and a');
   console.log('    payment-proof file open, before any hardcoded identity is removed.\n');
   process.exit(0);

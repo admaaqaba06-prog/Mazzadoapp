@@ -36,7 +36,7 @@ jobs:
     container:
       image: semgrep/semgrep:1.86.0
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
 
       - name: Scan
         # Rulesets, narrowest first:
@@ -57,39 +57,35 @@ jobs:
             --config p/ci \
             --config .semgrep/mazzado.yml \
             --sarif --output semgrep.sarif \
-            --metrics=off
-          # ⚠️ `--error` IS DELIBERATELY ABSENT, AND ONLY UNTIL PHASE 3.
+            --metrics=off \
+            --error
+          # `--error` IS THE POINT OF THIS JOB. A scanner whose findings are
+          # advisory becomes a list nobody reads; this makes a new finding a
+          # red build on the PR that introduced it, which is the only moment
+          # it is cheap to fix.
           #
-          # The gate belongs on — a scanner whose output is advisory becomes a
-          # list nobody reads. But turning it on today would fail every build
-          # on a finding we already know about and are mid-way through
-          # removing: the hardcoded admin identity, ~20 occurrences, tracked in
-          # docs/security/access-control-policy.md.
+          # It was absent for exactly two commits, while the hardcoded admin
+          # identity was being removed from 24 places. Those are gone, the
+          # count is zero, and this line is what keeps it zero.
           #
-          # The alternatives were worse. Excluding those files would hide the
-          # finding from the report we hand the bank. Lowering the severity
-          # would not help either, because --error exits non-zero on findings
-          # of ANY severity.
-          #
-          # So: the scan runs, publishes SARIF to the Security tab and keeps the
-          # artifact from today. It simply does not block a merge yet. The PR
-          # that deletes the last literal adds `--error` back, and from that
-          # commit the count is zero by construction.
-          #
-          # Do not merge that PR without this line restored.
+          # It exits non-zero on findings of ANY severity, warnings included.
+          # If a finding is wrong, fix the RULE or narrow its paths in
+          # .semgrep/mazzado.yml — where the reasoning is reviewable — rather
+          # than deleting this flag. The remediation process is in
+          # docs/security/sast-policy.md.
 
       - name: Upload SARIF
         # `always()` so a FAILED scan still publishes its findings — otherwise
         # the one run that matters is the one with no report attached.
         if: always()
-        uses: github/codeql-action/upload-sarif@v3
+        uses: github/codeql-action/upload-sarif@1190a975f95ce23525efb6a3fc21ea29567c1b52 # v3
         with:
           sarif_file: semgrep.sarif
 
       - name: Keep the report as an artifact
         # The review asks for a report. This is the file to attach.
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: semgrep-sarif
           path: semgrep.sarif

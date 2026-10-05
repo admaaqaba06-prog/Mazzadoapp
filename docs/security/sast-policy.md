@@ -1,7 +1,7 @@
 # Static Application Security Testing (SAST) — Mazzado
 
 **Owner:** Mazzado engineering
-**Last reviewed:** 30 September 2026
+**Last reviewed:** 3 October 2026
 **Audience:** Bank al Etihad / Staq production-access review, and whoever maintains this next.
 
 ---
@@ -45,7 +45,8 @@ copied from a template:
 | `mazzado-client-writes-money-state` | The browser writing a payment or settlement field |
 | `mazzado-payer-identifier-to-analytics` | A payer's CliQ alias, mobile or IBAN reaching analytics |
 | `mazzado-secret-in-source` | Private keys, client secrets, API keys in source |
-| `mazzado-bank-name-literal` | A hardcoded bank name drifting from the account record |
+| `mazzado-bank-name-literal` | A hardcoded English bank name drifting from the account record |
+| `mazzado-bank-name-literal-ar` | The same, for the Arabic name — the one a Jordanian customer reads |
 | `mazzado-dangerous-html` | `dangerouslySetInnerHTML` on user-supplied content |
 
 The bank-name rule exists because the receiving account has moved banks twice,
@@ -62,10 +63,10 @@ the security scan rather than a linter nobody runs.
 | Weekly, Mondays 04:00 UTC | Semgrep adds rules after our last commit. A repository with no pushes is not a repository with no vulnerabilities. |
 | On demand (`workflow_dispatch`) | For a review or an audit request |
 
-## 4. The build fails on a finding — from the phase-3 commit
+## 4. The build fails on a finding
 
 `semgrep scan --error` exits non-zero on any result, failing the check on the pull
-request.
+request. **It is on, as of 3 October 2026, and the finding count is zero.**
 
 This is deliberate. A scanner whose output is advisory becomes a list nobody
 reads: findings accumulate, the count becomes background noise, and the report
@@ -73,20 +74,23 @@ handed to a reviewer is a backlog rather than a result. Failing the build keeps
 the number at zero by construction, because the only moment it can rise is a pull
 request that someone is already looking at.
 
-**Stated plainly: `--error` is not on yet.** One finding already exists and is
-mid-removal — the hardcoded administrative identity, about twenty occurrences,
-§7 below. Turning the gate on today would fail every build on something we have
-already found, documented and scheduled.
+It exits non-zero on findings of **any** severity, warnings included. There is no
+severity threshold to tune and no "accepted findings" list.
 
-The alternatives were worse. Excluding those files would hide the finding from
-the very report this document exists to support. Lowering its severity would not
-help either, because `--error` exits non-zero on findings of any severity.
+### Why it was off for two commits, and how that is prevented from recurring
 
-So the scan runs today on every pull request, publishes SARIF to the Security tab
-and keeps the artifact — it simply does not block a merge. **The pull request that
-deletes the last literal restores `--error` in the same commit**, and from there
-the count is zero by construction. That sequencing is recorded in the workflow
-file next to the missing flag, so it cannot be quietly forgotten.
+The flag was deliberately absent between 30 September and 3 October 2026, while
+the hardcoded administrative identity was being removed from 24 places. Turning
+the gate on before that work landed would have failed every build on a finding
+already found, documented and scheduled — and the alternatives were worse:
+excluding those files would have hidden the finding from this very report, and
+lowering the severity would not have helped, because the flag ignores severity.
+
+A comment in a workflow file is not a control. So the restoration is now asserted
+by a test — `src/constants/adminIdentity.test.ts` — which fails if `--error`
+leaves the workflow, if the literal reappears anywhere, or if an action stops
+being pinned to a commit SHA. Deleting the flag in a hurry now breaks the build
+it was deleted to unblock.
 
 ## 5. Remediation process
 
@@ -126,16 +130,38 @@ misleading:
   `.gitignore` refuses `*.crt`, `*.pem`, `*.key`, `*.p12`, `*.pfx` and
   service-account JSON.
 
-## 7. Current status
+## 7. Current status — zero findings, and what the first scan actually found
 
-The scan is configured and runs on every pull request. The first full-repository
-result and the remediation of anything it finds are tracked in the pull request
-that introduced this policy.
+**Current: 0 findings.** 149 rules over 719 files, every pull request.
 
-**One finding is already known and is being remediated separately:** a hardcoded
-administrative identity (an email literal and a uid literal) appears in Cloud
-Functions, Firestore rules, Storage rules and the client. It is covered by the
-`mazzado-hardcoded-admin-identity` rule above and is addressed in
-[`access-control-policy.md`](./access-control-policy.md). It is named here rather
-than left for the scan to surface, because a policy document that omits a known
-finding is worth nothing.
+A zero that was always zero says nothing about the scanner. The first full run,
+on 30 September 2026, returned **43 findings**. All 43 were resolved by
+3 October. They were:
+
+| Count | Rule | What it was | What was done |
+|---:|---|---|---|
+| 24 | `mazzado-hardcoded-admin-identity` | One email address and one uid granting production admin, across `firestore.rules` (5), `storage.rules` (1), Cloud Functions (11) and the client (7) | **Real.** Removed; access is now `users/{uid}.role`. See [`access-control-policy.md`](./access-control-policy.md) |
+| 11 | `github-actions-mutable-action-tag` | Workflow steps pinned to movable tags (`@v4`) rather than commit SHAs — including the two workflows that hold the Firebase deploy credentials | **Real.** All eleven pinned to 40-character commit SHAs, with the version in a trailing comment |
+| 7 | `mazzado-bank-name-literal` | Doc comments naming the integration partner ("Embedded CliQ (Bank al Etihad / Staq)") | **False positives.** The rule matched the bare name and so could not tell prose from a string. Narrowed to require an opening quote on the same line, and its blind spot written into the rule. Zero true positives in seven — the invariant is really held by `src/constants/brandBoundary.test.ts` |
+| 1 | `mazzado-client-writes-money-state` | The browser writing `paymentStatus: 'paid'` in `orderWorkflow.ts` | **Real, and dead.** Payment moved to the `submitOrderPayment` callable in Wave 1 and nothing had called this branch since; `paymentStatus` is on the orders denylist in `firestore.rules`, so the write would have been rejected whole. The branch was deleted |
+
+Two of the four were genuine defects a reviewer would care about; one was a
+supply-chain exposure nobody had raised; one was the scanner being wrong, which
+is recorded here rather than quietly excluded.
+
+### A failure mode worth naming
+
+The first version of `.semgrep/mazzado.yml` used Semgrep's AST patterns and
+failed to load — exit 7 — twice: once on an invalid `typescriptreact` language
+key, once on patterns that would not parse. **Semgrep rejects the entire config
+on one bad rule, so no rule ran at all**, while the check showed red for a reason
+that looked like the code under inspection. A config that does not load is not a
+weaker scan; it is no scan.
+
+Separately, the admin rule was blind twice over in its first form: its
+`languages` key meant it never opened a `.rules` file, and its pattern matched
+the plain address while `firestore.rules` stores it escaped for its own regex
+engine (`admaaqaba06@gmail\\.com`). It would have reported zero findings over
+four live grants. Both are why every rule here is now a regex on `generic`, and
+why the admin invariant is also asserted by a plain unit test that needs no
+scanner at all.

@@ -1013,7 +1013,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           const userSnap = await getDoc(userRef);
           
           let fbData: any = {};
-          const isGoogleAdmin = user.email?.toLowerCase().trim() === 'admaaqaba06@gmail.com';
           if (!userSnap.exists()) {
             const freshUserDoc = {
               id: user.uid,
@@ -1021,7 +1020,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
               name: user.displayName || (user.email ? user.email.split('@')[0] : 'User'),
               email: user.email || '', // phone/email-less providers: write '' (never a fabricated email) so the users create rule passes
               avatar: user.photoURL || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=150&q=80',
-              role: isGoogleAdmin ? 'admin' : 'user',
+              role: 'user',
               phoneNumber: user.phoneNumber || '',
               phone: user.phoneNumber || '',
               city: '',
@@ -1055,15 +1054,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           }
 
           // Build user state object mimicking post-login steps exactly
-          const idTokenResult = await user.getIdTokenResult();
-          const hasAdminClaim = !!idTokenResult.claims.admin;
-          const userEmail = user.email ? user.email.toLowerCase().trim() : '';
-          const isAdminEmail = userEmail === 'admaaqaba06@gmail.com';
-          // Reads the STORED role. It used to be derived from the hardcoded email
-            // alone, so an administrator granted by role came back as 'user' and the
-            // admin panel — which gates on role — stayed invisible to them.
+          // THE STORED ROLE IS THE ONLY INPUT.
+            //
+            // This was OR-ed with a hardcoded email address and with a Firebase
+            // custom claim. The email could not be revoked without a deploy; the
+            // claim was never set by anything, and had it been, it would have been
+            // a second store that can disagree with the first. users/{uid}.role is
+            // now the single answer here, in the Cloud Functions, and in both
+            // rules files.
             let loadedRole: 'admin' | 'user' | 'seller' =
-              (fbData.role === 'admin' || fbData.isAdmin === true || isAdminEmail)
+              (fbData.role === 'admin' || fbData.isAdmin === true)
                 ? 'admin'
                 : ((fbData.role === 'seller' || fbData.isSeller === true) ? 'seller' : 'user');
 
@@ -1074,10 +1074,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             email: fbData.email || user.email || '',
             avatar: fbData.avatar || user.photoURL || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=150&q=80',
             role: loadedRole,
-            // Each path stands alone. These were AND-ed with the hardcoded email, so a
-              // genuine admin:true claim evaluated to false for anyone else — the literal
-              // neutered the very RBAC primitive meant to replace it.
-              isAdmin: fbData.isAdmin === true || fbData.role === 'admin' || hasAdminClaim || isAdminEmail,
+            isAdmin: fbData.isAdmin === true || fbData.role === 'admin',
             accountStatus: fbData.accountStatus || 'active',
             isVerified: fbData.isVerified !== undefined ? fbData.isVerified : true,
             isBlocked: fbData.isBlocked !== undefined ? fbData.isBlocked : false,
@@ -1140,16 +1137,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       if (firebaseUser) {
         const uid = firebaseUser.uid;
         const userRef = doc(db, 'users', uid);
-        const userEmail = firebaseUser.email ? firebaseUser.email.toLowerCase().trim() : '';
-        const isAdminEmail = userEmail === 'admaaqaba06@gmail.com';
         
         try {
-          const idTokenResult = await firebaseUser.getIdTokenResult();
-          const hasAdminClaim = !!idTokenResult.claims.admin;
-          // Admin Dashboard must appear only if:
-          // (Firebase custom claim admin == true OR users/{uid}.role == "admin") WITH THE STRICT CONDITION that the email is admaaqaba06@gmail.com
-          let currentRole: 'admin' | 'user' = isAdminEmail ? 'admin' : 'user';
-          let isAdminField = isAdminEmail;
+          // A NEW ACCOUNT IS NEVER AN ADMINISTRATOR. These two are only the
+          // values written for a user doc that does not exist yet; the
+          // existing-user branch below reads the STORED role. They used to be
+          // seeded from a hardcoded address, which is how one email became a
+          // superuser that no amount of role management could take back.
+          const currentRole: 'admin' | 'user' = 'user';
+          const isAdminField = false;
  
           let userSnap;
           try {
@@ -1318,22 +1314,22 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
               fbData.sessionId = newSessionId;
             }
 
-            // Reads the STORED role. It used to be derived from the hardcoded email
-            // alone, so an administrator granted by role came back as 'user' and the
-            // admin panel — which gates on role — stayed invisible to them.
-            let loadedRole: 'admin' | 'user' | 'seller' =
-              (fbData.role === 'admin' || fbData.isAdmin === true || isAdminEmail)
+            // THE STORED ROLE IS THE ONLY INPUT — see the matching note in the
+            // redirect path above.
+            const loadedRole: 'admin' | 'user' | 'seller' =
+              (fbData.role === 'admin' || fbData.isAdmin === true)
                 ? 'admin'
                 : ((fbData.role === 'seller' || fbData.isSeller === true) ? 'seller' : 'user');
-            
-            if (isAdminEmail && fbData.role !== 'admin') {
-              loadedRole = 'admin';
-              try {
-                await updateDoc(userRef, { role: 'admin', isAdmin: true });
-              } catch (updateErr) {
-                console.warn("Failed to automatically upgrade bootstrapped admin role in Firestore:", updateErr);
-              }
-            }
+
+            // ⚠️ THE BROWSER NO LONGER PROMOTES ANYONE, EITHER.
+            //
+            // This used to write `role:'admin', isAdmin:true` whenever the
+            // signed-in address matched the hardcoded one: a client granting
+            // itself privilege. firestore.rules had to carve out an explicit
+            // exception to let that write through — an exception that, by
+            // construction, was a self-promotion path for whoever held the
+            // address. The write and the exception are both gone. A role is
+            // granted by grantAdminRole or the bootstrap script, to a uid.
             // ⚠️ THE BROWSER NO LONGER DEMOTES ANYONE.
             //
             // This used to be an `else if` that, for any account whose email is
@@ -1359,10 +1355,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
               email: fbData.email || firebaseUser.email || '',
               avatar: fbData.avatar || firebaseUser.photoURL || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=150&q=80',
               role: loadedRole,
-              // Each path stands alone. These were AND-ed with the hardcoded email, so a
-              // genuine admin:true claim evaluated to false for anyone else — the literal
-              // neutered the very RBAC primitive meant to replace it.
-              isAdmin: fbData.isAdmin === true || fbData.role === 'admin' || hasAdminClaim || isAdminEmail,
+              isAdmin: fbData.isAdmin === true || fbData.role === 'admin',
               accountStatus: fbData.accountStatus || 'active',
               isVerified: fbData.isVerified !== undefined ? fbData.isVerified : true,
               isBlocked: fbData.isBlocked !== undefined ? fbData.isBlocked : false,
@@ -1392,8 +1385,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             name: firebaseUser.displayName || 'User',
             email: firebaseUser.email || '',
             avatar: firebaseUser.photoURL || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=150&q=80',
-            role: isAdminEmail ? 'admin' : 'user',
-            isAdmin: isAdminEmail,
+            // Fails CLOSED: this object is built when hydration THREW, so the
+            // stored role could not be read. Guessing 'admin' from an address
+            // was the one branch that handed out privilege on an error path.
+            role: 'user',
+            isAdmin: false,
             accountStatus: 'active',
             isVerified: true,
             isBlocked: false,
@@ -2699,7 +2695,6 @@ const fetchIP = async () => {
           await updateProfile(user, { displayName: name });
           
           const userRef = doc(db, 'users', user.uid);
-          const isAutoAdmin = cleanEmail === 'admaaqaba06@gmail.com';
           const dev = getDeviceInfo();
           const ip = await fetchIP();
           const freshUserDoc = {
@@ -2708,7 +2703,7 @@ const fetchIP = async () => {
             name: name,
             email: cleanEmail,
             avatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=150&q=80',
-            role: isAutoAdmin ? 'admin' : 'user',
+            role: 'user',
             phoneNumber: '',
             phone: '',
             city: '',
@@ -2948,7 +2943,6 @@ const fetchIP = async () => {
     const cleanEmail = email.toLowerCase().trim();
     const cleanPhone = phone.trim();
     const cleanName = name.trim();
-    const isAdminEmail = cleanEmail === 'admaaqaba06@gmail.com';
 
     // Duplicate Account & Sybil / Fraud Protection Validation via Cloud Function
     try {
@@ -3000,7 +2994,7 @@ const fetchIP = async () => {
         normalizedName: cleanName.toLowerCase().trim(),
         email: cleanEmail,
         avatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=150&q=80',
-        role: isAdminEmail ? 'admin' : 'user',
+        role: 'user',
         accountStatus: 'active',
         phoneNumber: cleanPhone || '',
         phone: cleanPhone || '',
@@ -3024,8 +3018,7 @@ const fetchIP = async () => {
       // Track successful registration in Analytics
       await logAnalyticsEvent('user_registration', user.uid, cleanEmail, {
         method: 'email_password',
-        name: cleanName,
-        isAdmin: isAdminEmail
+        name: cleanName
       });
 
       return { 

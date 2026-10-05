@@ -14,11 +14,12 @@ service firebase.storage {
     /**
      * Administrative access, from the SAME record firestore.rules reads.
      *
-     * This used to accept `request.auth.token.admin == true` or a hardcoded
-     * email. Nothing in the codebase ever called setCustomUserClaims, so that
-     * claim was never set — which meant the email literal was the ONLY working
-     * admin path for Storage, and deleting it would have locked every
-     * administrator out of payment proofs.
+     * This accepted `request.auth.token.admin == true` or a hardcoded email.
+     * Nothing ever called setCustomUserClaims, so the claim was never set and
+     * the email literal was the only working admin path for Storage — which
+     * is why it was kept one deploy longer than the rest, as the fallback
+     * that made the role path safe to switch on. The role path is confirmed
+     * working, so the fallback goes.
      *
      * A custom claim was considered as the replacement and rejected: it would
      * be a SECOND source of truth alongside users/{uid}.role, the two can
@@ -32,18 +33,14 @@ service firebase.storage {
      * owner fetching their own receipt never triggers it. It is evaluated for
      * an admin reading someone else's file, or a delete.
      *
-     * The literal below stays until the role path is confirmed working in
-     * production. It is the fallback that makes this change safe to deploy, and
-     * it is removed in the next step, not this one.
+     * NOTE: `role` only. firestore.rules also honours the older `isAdmin`
+     * mirror; both writers set the two fields together, so do not hand-edit a
+     * user document to set just one.
      */
     function isAdmin() {
       return request.auth != null &&
-        (
-          firestore.exists(/databases/(default)/documents/users/$(request.auth.uid)) &&
-          firestore.get(/databases/(default)/documents/users/$(request.auth.uid)).data.role == 'admin'
-          ||
-          request.auth.token.email == "admaaqaba06@gmail.com"
-        );
+        firestore.exists(/databases/(default)/documents/users/$(request.auth.uid)) &&
+        firestore.get(/databases/(default)/documents/users/$(request.auth.uid)).data.role == 'admin';
     }
 
     // 1. Payment Proofs (Readable only by owner & admin; writable only by owner)
