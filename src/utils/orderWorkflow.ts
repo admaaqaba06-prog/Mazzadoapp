@@ -92,7 +92,7 @@ export function checkRolePermission(action: string, role: 'buyer' | 'seller' | '
   // Wave 3: `confirm_receipt` is the buyer's evidence-backed acceptance. Like
   // `confirm_delivery` it is listed here as a BUYER action but executes entirely
   // inside releaseOrderEscrow — this table only decides who may ask.
-  const buyerActions = ['pay', 'cancel_before_payment', 'confirm_delivery', 'confirm_receipt', 'open_dispute'];
+  const buyerActions = ['cancel_before_payment', 'confirm_delivery', 'confirm_receipt', 'open_dispute'];
   // mark_delivered is a claim of FACT (the goods arrived), not a money move —
   // escrow release remains admin-only below. Admins inherit every action, which
   // is what lets the team advance an order on the seller's behalf.
@@ -117,7 +117,7 @@ export function checkRolePermission(action: string, role: 'buyer' | 'seller' | '
 // Central transition function
 export async function executeOrderTransition(
   order: Order,
-  action: 'pay' | 'cancel_before_payment' | 'prepare_shipment' | 'mark_shipped' | 'mark_delivered' | 'confirm_delivery' | 'open_dispute' | 'release_escrow' | 'refund' | 'resolve_dispute' | 'force_close' | 'upload_prep_photo' | 'mark_out_for_delivery' | 'confirm_receipt',
+  action: 'cancel_before_payment' | 'prepare_shipment' | 'mark_shipped' | 'mark_delivered' | 'confirm_delivery' | 'open_dispute' | 'release_escrow' | 'refund' | 'resolve_dispute' | 'force_close' | 'upload_prep_photo' | 'mark_out_for_delivery' | 'confirm_receipt',
   currentUser: { id: string; email: string; name: string; role: 'user' | 'seller' | 'admin'; isAdmin?: boolean },
   extraFields?: {
     trackingNumber?: string;
@@ -289,19 +289,19 @@ export async function executeOrderTransition(
 
   // Determine transition target and fields
   switch (action as any) {
-    case 'pay':
-      toStatus = 'paid';
-      // NOTE: escrowStatus intentionally NOT written here — the client guard
-      // below forbids that key (server owns escrow state), and including it
-      // made this transition throw on every call.
-      updateFields = {
-        status: 'paid',
-        paymentStatus: 'paid'
-      };
-      activityType = 'Buyer Paid';
-      activityMessageAr = 'رفع المشتري إثبات الدفع عبر كليك — بانتظار تأكيد الإدارة.';
-      activityMessageEn = 'Buyer submitted CliQ payment proof — pending admin confirmation.';
-      break;
+    // 'pay' USED TO LIVE HERE, AND IT WAS DEAD CODE THAT COULD ONLY FAIL.
+    //
+    // Wave 1 moved payment to the submitOrderPayment callable, which reserves
+    // a unique transaction reference and writes status + paymentStatus
+    // atomically with the Admin SDK. Nothing has called this branch since.
+    //
+    // It still set the paid payment-status field from the browser, and that
+    // field is on the orders update denylist in firestore.rules —
+    // deliberately, so a buyer cannot mark their own order paid and skip the
+    // reference-uniqueness check. So the updateDoc would have been rejected
+    // whole and the buyer shown a failure. Removing it means an accidental
+    // caller hits the `default:` throw below, which says plainly that the
+    // action is server-side, instead of a permission error from the rules.
 
     case 'cancel_before_payment':
       toStatus = 'cancelled';

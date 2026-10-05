@@ -288,36 +288,48 @@ async function notify({ uid, event, data = {} }) {
 
 /**
  * assertAdmin — shared admin gate for admin-only callables.
- * Mirrors the inline check used across the existing admin callables
- * (releaseOrderEscrow / refundOrderEscrow / approveWithdrawal etc.):
- * users/{uid}.role === 'admin' || users/{uid}.isAdmin === true || root admin email.
+ *
+ * ONE definition of administrator, and it is the role record:
+ * users/{uid}.role === 'admin' || users/{uid}.isAdmin === true. Every gate in
+ * this file resolves through callerIsAdmin below, so the question has a
+ * single answer and a single place to change it.
+ *
+ * It used to short-circuit on a hardcoded email BEFORE reading the document
+ * at all. That identity could not be revoked without a deploy, it outlived
+ * whoever held it, and it was legible to anyone who could read the
+ * repository. Granting is now an audited write (grantAdminRole in
+ * adminRoles.js, or the one-time bootstrap script) and a revoke takes effect
+ * on the caller's very next request.
+ *
  * Throws HttpsError('permission-denied') otherwise; returns the caller uid.
  */
 async function assertAdmin(context) {
   if (!context.auth) {
     throw new functions.https.HttpsError('unauthenticated', 'User must be authenticated.');
   }
-  const tokenEmail = ((context.auth.token && context.auth.token.email) || '').toLowerCase();
-  if (tokenEmail === 'admaaqaba06@gmail.com') {
-    return context.auth.uid;
-  }
   const callerSnap = await db.collection('users').doc(context.auth.uid).get();
   const callerData = callerSnap.exists ? callerSnap.data() : {};
-  const isCallerAdmin = callerData.role === 'admin' || callerData.isAdmin === true;
-  if (!isCallerAdmin) {
+  if (!callerIsAdmin(callerData)) {
     throw new functions.https.HttpsError('permission-denied', 'Unauthorized. Administrators only.');
   }
   return context.auth.uid;
 }
 
-// Shared caller-is-admin check for callables that already read the caller's
-// user doc inside their transaction (mirrors the inline check in
-// releaseOrderEscrow). `callerData` is users/{uid}.data(); `tokenEmail` is
-// context.auth.token.email. Kept tiny + pure so the below-reserve callables and
-// the escrow callables agree on who counts as an admin.
-function callerIsAdmin(callerData, tokenEmail) {
+// THE caller-is-admin check. Every admin gate in this file — assertAdmin, the
+// escrow callables, the below-reserve callables — resolves through this one
+// function, so "who is an administrator" has exactly one answer.
+//
+// `callerData` is users/{uid}.data(), read by the caller (often inside its own
+// transaction, which is why this stays tiny and pure rather than doing the
+// read itself).
+//
+// It took a second argument, `tokenEmail`, compared against a hardcoded
+// address. Two sources of truth for one decision is one too many: the email
+// could not be revoked without a deploy, and it silently outranked whatever
+// the role record said. The role record is now the only input.
+function callerIsAdmin(callerData) {
   const d = callerData || {};
-  return d.role === 'admin' || d.isAdmin === true || (tokenEmail || '').toLowerCase() === 'admaaqaba06@gmail.com';
+  return d.role === 'admin' || d.isAdmin === true;
 }
 
 // Delete a list of document refs in chunks (Firestore batches cap at 500 writes).
@@ -2453,7 +2465,7 @@ exports.releaseEscrow = functions.runWith({ cors: true }).https.onCall(async (da
         throw new functions.https.HttpsError('not-found', 'Authenticated user not found.');
       }
       const handlerData = handlerSnap.data();
-      if (handlerData.role !== 'admin' && !context.auth.token.admin) {
+      if (!callerIsAdmin(handlerData)) {
         throw new functions.https.HttpsError('permission-denied', 'Unauthorized. Administrators only.');
       }
 
@@ -2547,7 +2559,7 @@ exports.refundEscrow = functions.runWith({ cors: true }).https.onCall(async (dat
         throw new functions.https.HttpsError('not-found', 'Authenticated user not found.');
       }
       const handlerData = handlerSnap.data();
-      if (handlerData.role !== 'admin' && !context.auth.token.admin) {
+      if (!callerIsAdmin(handlerData)) {
         throw new functions.https.HttpsError('permission-denied', 'Unauthorized. Administrators only.');
       }
 
@@ -2915,18 +2927,18 @@ exports.submitOrderPayment = functions.runWith({ cors: true }).https.onCall(asyn
 /**
  * grantAdminRole / revokeAdminRole — administrative access as a ROLE.
  *
- * Replaces the hardcoded identity that currently grants admin in Cloud
- * Functions, firestore.rules, storage.rules and the client. Each writes BOTH
- * stores, because the two rule files read different things: firestore.rules
- * reads users/{uid}.role, storage.rules reads the custom claim and cannot see
- * Firestore documents at all. See functions/adminRoles.js for why the claim is
- * written first.
+ * These replaced the hardcoded identity that used to grant admin in Cloud
+ * Functions, firestore.rules, storage.rules and the client. There is now ONE
+ * store: users/{uid}.role. storage.rules reads that same document through
+ * firestore.get(); no custom claim is written, and functions/adminRoles.js
+ * records why a claim was rejected (a second store that can disagree with the
+ * first, and one that keeps a revoked admin signed in until their token
+ * refreshes — up to an hour).
  *
- * ADMIN-GATED, WHICH IS ALSO THE BOOTSTRAP. Only an existing administrator can
- * grant one, and during the migration the existing administrator is the
- * hardcoded identity — which is precisely why these deploy BEFORE any literal
- * is removed. Grant first, verify the granted account works, then delete the
- * literals.
+ * ADMIN-GATED, WHICH IS ALSO WHY THE FIRST ADMIN NEEDS A SCRIPT. Only an
+ * existing administrator can grant one, so the first cannot come through here
+ * — see scripts/admin/grant-admin.cjs, which authenticates with a
+ * service-account key and depends on no application role at all.
  *
  * The acting admin's uid and email are taken from the verified token, never
  * from the request payload, so the audit trail records who actually called.
@@ -3220,8 +3232,7 @@ exports.issueDeliveryCode = functions.runWith({ cors: true }).https.onCall(async
     // "admin" governs every order-side callable.
     const callerSnap = await db.collection('users').doc(context.auth.uid).get();
     const cd = callerSnap.exists ? (callerSnap.data() || {}) : {};
-    const isAdmin = cd.role === 'admin' || cd.isAdmin === true ||
-      (context.auth.token.email || '').toLowerCase() === 'admaaqaba06@gmail.com';
+    const isAdmin = callerIsAdmin(cd);
 
     const deps = { db, Timestamp: admin.firestore.Timestamp, now: () => Date.now() };
     const result = await issueDeliveryCodeTxn(deps, {
@@ -3361,7 +3372,10 @@ exports.onUserCreated = functions.auth.user().onCreate(async (user) => {
   const walletRef = db.collection('wallets').doc(uid);
 
   const cleanEmail = user.email ? user.email.toLowerCase().trim() : '';
-  const isAutoAdmin = cleanEmail === 'admaaqaba06@gmail.com';
+  // No account is born an administrator. One address used to be promoted
+  // here on sign-up, which made "who is an admin" a property of the auth
+  // provider rather than a decision somebody made and can be shown to have
+  // made. The role is granted afterwards, deliberately, via grantAdminRole.
 
   const batch = db.batch();
 
@@ -3372,8 +3386,8 @@ exports.onUserCreated = functions.auth.user().onCreate(async (user) => {
     name: user.displayName || 'User',
     email: cleanEmail,
     avatar: user.photoURL || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=150&q=80',
-    role: isAutoAdmin ? 'admin' : 'user',
-    isAdmin: isAutoAdmin,
+    role: 'user',
+    isAdmin: false,
     accountStatus: 'active',
     isVerified: true,
     isBlocked: false,
@@ -3505,7 +3519,7 @@ exports.repairEndedAuctionOrder = functions.runWith({ cors: true }).https.onCall
       throw new functions.https.HttpsError('not-found', 'Authenticated user not found.');
     }
     const handlerData = handlerSnap.data();
-    if (handlerData.role !== 'admin' && !context.auth.token.admin && (context.auth.token.email || '').toLowerCase() !== 'admaaqaba06@gmail.com') {
+    if (!callerIsAdmin(handlerData)) {
       throw new functions.https.HttpsError('permission-denied', 'Unauthorized. Administrators only.');
     }
 
@@ -3679,7 +3693,6 @@ exports.acceptBelowReserve = functions.runWith({ cors: true }).https.onCall(asyn
     throw new functions.https.HttpsError('unauthenticated', 'يجب تسجيل الدخول لتنفيذ هذه العملية.');
   }
   const callerUserId = context.auth.uid;
-  const tokenEmail = (context.auth.token && context.auth.token.email) || '';
   const { auctionId } = data || {};
   if (!auctionId) {
     throw new functions.https.HttpsError('invalid-argument', 'معرّف المزاد مطلوب.');
@@ -3709,7 +3722,7 @@ exports.acceptBelowReserve = functions.runWith({ cors: true }).https.onCall(asyn
       }
 
       const callerData = callerSnap.exists ? callerSnap.data() : {};
-      const isAdmin = callerIsAdmin(callerData, tokenEmail);
+      const isAdmin = callerIsAdmin(callerData);
       const isSeller = auctionData.sellerId && auctionData.sellerId === callerUserId;
       if (!isAdmin && !isSeller) {
         throw new functions.https.HttpsError('permission-denied', 'هذه العملية متاحة للبائع فقط.');
@@ -3840,7 +3853,6 @@ exports.rejectBelowReserve = functions.runWith({ cors: true }).https.onCall(asyn
     throw new functions.https.HttpsError('unauthenticated', 'يجب تسجيل الدخول لتنفيذ هذه العملية.');
   }
   const callerUserId = context.auth.uid;
-  const tokenEmail = (context.auth.token && context.auth.token.email) || '';
   const { auctionId } = data || {};
   if (!auctionId) {
     throw new functions.https.HttpsError('invalid-argument', 'معرّف المزاد مطلوب.');
@@ -3872,7 +3884,7 @@ exports.rejectBelowReserve = functions.runWith({ cors: true }).https.onCall(asyn
       // Authorization from SERVER state only: the auction's own sellerId, or an
       // admin. Nothing the caller sent is consulted.
       const callerData = callerSnap.exists ? callerSnap.data() : {};
-      const isAdmin = callerIsAdmin(callerData, tokenEmail);
+      const isAdmin = callerIsAdmin(callerData);
       const isSeller = auctionData.sellerId && auctionData.sellerId === callerUserId;
       if (!isAdmin && !isSeller) {
         throw new functions.https.HttpsError('permission-denied', 'هذه العملية متاحة للبائع فقط.');
@@ -3954,7 +3966,6 @@ exports.confirmBelowReserve = functions.runWith({ cors: true }).https.onCall(asy
     throw new functions.https.HttpsError('unauthenticated', 'يجب تسجيل الدخول لتنفيذ هذه العملية.');
   }
   const callerUserId = context.auth.uid;
-  const tokenEmail = (context.auth.token && context.auth.token.email) || '';
   const { auctionId } = data || {};
   if (!auctionId) {
     throw new functions.https.HttpsError('invalid-argument', 'معرّف المزاد مطلوب.');
@@ -3981,7 +3992,7 @@ exports.confirmBelowReserve = functions.runWith({ cors: true }).https.onCall(asy
       const auctionData = auctionSnap.exists ? auctionSnap.data() : {};
 
       const callerData = callerSnap.exists ? callerSnap.data() : {};
-      const isAdmin = callerIsAdmin(callerData, tokenEmail);
+      const isAdmin = callerIsAdmin(callerData);
       const isBuyer = orderData.buyerId && orderData.buyerId === callerUserId;
       if (!isAdmin && !isBuyer) {
         throw new functions.https.HttpsError('permission-denied', 'هذه العملية متاحة للمشتري فقط.');
@@ -4061,7 +4072,6 @@ exports.declineBelowReserve = functions.runWith({ cors: true }).https.onCall(asy
     throw new functions.https.HttpsError('unauthenticated', 'يجب تسجيل الدخول لتنفيذ هذه العملية.');
   }
   const callerUserId = context.auth.uid;
-  const tokenEmail = (context.auth.token && context.auth.token.email) || '';
   const { auctionId } = data || {};
   if (!auctionId) {
     throw new functions.https.HttpsError('invalid-argument', 'معرّف المزاد مطلوب.');
@@ -4087,7 +4097,7 @@ exports.declineBelowReserve = functions.runWith({ cors: true }).https.onCall(asy
       const orderData = orderSnap.data();
 
       const callerData = callerSnap.exists ? callerSnap.data() : {};
-      const isAdmin = callerIsAdmin(callerData, tokenEmail);
+      const isAdmin = callerIsAdmin(callerData);
       const isBuyer = orderData.buyerId && orderData.buyerId === callerUserId;
       if (!isAdmin && !isBuyer) {
         throw new functions.https.HttpsError('permission-denied', 'هذه العملية متاحة للمشتري فقط.');
@@ -4672,7 +4682,7 @@ exports.releaseOrderEscrow = functions.runWith({ cors: true }).https.onCall(asyn
         throw new functions.https.HttpsError('not-found', 'ملف المستخدم غير موجود');
       }
       const callerData = callerSnap.data();
-      const isCallerAdmin = callerData.role === 'admin' || callerData.isAdmin === true || (context.auth.token.email || '').toLowerCase() === 'admaaqaba06@gmail.com';
+      const isCallerAdmin = callerIsAdmin(callerData);
       const isCallerBuyer = callerUserId === buyerId;
 
       if (!isCallerAdmin && !isCallerBuyer) {
@@ -5111,7 +5121,7 @@ exports.refundOrderEscrow = functions.runWith({ cors: true }).https.onCall(async
         throw new functions.https.HttpsError('not-found', 'ملف المستخدم غير موجود');
       }
       const callerData = callerSnap.data();
-      const isCallerAdmin = callerData.role === 'admin' || callerData.isAdmin === true || (context.auth.token.email || '').toLowerCase() === 'admaaqaba06@gmail.com';
+      const isCallerAdmin = callerIsAdmin(callerData);
 
       if (!isCallerAdmin) {
         throw new functions.https.HttpsError('permission-denied', 'غير مصرح للقيام بهذه العملية، يجب أن تكون مشرفاً فقط');
@@ -5430,7 +5440,7 @@ exports.repairStuckEscrowsForEndedAuction = functions.runWith({ cors: true }).ht
         throw new functions.https.HttpsError('not-found', 'ملف المستخدم الخاص بالمشرف غير موجود');
       }
       const callerData = callerSnap.data();
-      const isCallerAdmin = callerData.role === 'admin' || callerData.isAdmin === true || (context.auth.token.email || '').toLowerCase() === 'admaaqaba06@gmail.com';
+      const isCallerAdmin = callerIsAdmin(callerData);
 
       if (!isCallerAdmin) {
         throw new functions.https.HttpsError('permission-denied', 'عذراً، هذا الإجراء مخصص للمشرفين فقط');
@@ -5823,7 +5833,7 @@ exports.resetTestAuctionData = functions.runWith({ cors: true }).https.onCall(as
     }
 
     const callerData = callerSnap.data();
-    const isCallerAdmin = callerData.role === 'admin' || callerData.isAdmin === true || (context.auth.token.email || '').toLowerCase() === 'admaaqaba06@gmail.com';
+    const isCallerAdmin = callerIsAdmin(callerData);
 
     if (!isCallerAdmin) {
       throw new functions.https.HttpsError('permission-denied', 'غير مصرح للقيام بهذه العملية، يجب أن تكون مشرفاً');
@@ -5925,7 +5935,7 @@ exports.approveWithdrawal = functions.runWith({ cors: true }).https.onCall(async
       }
 
       const callerData = callerSnap.data();
-      const isCallerAdmin = callerData.role === 'admin' || callerData.isAdmin === true || (context.auth.token.email || '').toLowerCase() === 'admaaqaba06@gmail.com';
+      const isCallerAdmin = callerIsAdmin(callerData);
 
       if (!isCallerAdmin) {
         throw new functions.https.HttpsError('permission-denied', 'غير مصرح للقيام بهذه العملية، يجب أن تكون مشرفاً فقط');
@@ -6089,7 +6099,7 @@ exports.rejectWithdrawal = functions.runWith({ cors: true }).https.onCall(async 
       }
 
       const callerData = callerSnap.data();
-      const isCallerAdmin = callerData.role === 'admin' || callerData.isAdmin === true || (context.auth.token.email || '').toLowerCase() === 'admaaqaba06@gmail.com';
+      const isCallerAdmin = callerIsAdmin(callerData);
 
       if (!isCallerAdmin) {
         throw new functions.https.HttpsError('permission-denied', 'غير مصرح للقيام بهذه العملية، يجب أن تكون مشرفاً فقط');

@@ -13,8 +13,8 @@
  * ONE SOURCE OF TRUTH: users/{uid}.role
  *
  * An earlier draft of this file also set a Firebase custom claim, because
- * storage.rules reads `request.auth.token.admin` and cannot see a Firestore
- * document. That was rejected, and the reasoning is worth keeping:
+ * storage.rules at the time read `request.auth.token.admin` and could not see
+ * a Firestore document. That was rejected, and the reasoning is worth keeping:
  *
  *   - TWO STORES CAN DIVERGE. A grant that writes both is two writes that can
  *     half-fail, and an admin editing users/{uid} in the Firebase console would

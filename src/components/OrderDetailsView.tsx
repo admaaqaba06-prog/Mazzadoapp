@@ -80,8 +80,9 @@ export const OrderDetailsView: React.FC<OrderDetailsViewProps> = ({ orderId, onB
    * rails are genuinely different products, not a toggle on one:
    *   'manual'  — the existing flow. The buyer transfers to our public CliQ
    *               alias themselves and uploads a receipt; an admin verifies it.
-   *   'gateway' — Bank al Etihad's embedded CliQ. We raise a request, the buyer
-   *               approves it inside their own bank app, a webhook confirms it.
+   *   'gateway' — the embedded CliQ rail. We raise a request at the bank,
+   *               the buyer approves it inside their own banking app, and a
+   *               webhook confirms it.
    * Deliberately NOT persisted: a buyer who abandons the gateway flow must be
    * able to fall back to the manual one, and a half-finished choice is not a
    * fact about the order.
