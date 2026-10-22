@@ -41,6 +41,7 @@ const { issueDeliveryCode: issueDeliveryCodeTxn } = require('./deliveryIssue');
 const { activateSeller: activateSellerTxn } = require('./sellerActivation');
 const { buildPayoutTransferStamp } = require('./payoutTransfer');
 const { resolveCounterpartyContact, waMeLink } = require('./contactReveal');
+const { resolvePickupSubmission } = require('./pickupDetails');
 const { shouldActivateSellerOnApproval } = require('./listingApproval');
 const { normalizeDeliveryCodeInput } = require('./deliveryCode');
 const { checkDeliveryConfirm, isHttpsUrl } = require('./deliveryConfirm');
@@ -2889,6 +2890,64 @@ exports.rejectSubscription = functions.runWith({ cors: true }).https.onCall(asyn
     if (error instanceof functions.https.HttpsError) throw error;
     const code = SUBSCRIPTION_ERROR_CODES.includes(error.code) ? error.code : 'internal';
     throw new functions.https.HttpsError(code, error.message || 'Operation failed.');
+  }
+});
+
+/**
+ * submitPickupDetails — the seller's end of the courier handover.
+ *
+ * The buyer nominates a delivery address and phone at the payment step; the
+ * seller had no equivalent, so a courier had a destination and no origin.
+ *
+ * THE GATE IS `paymentVerified`, enforced in pickupDetails.js and unit-tested
+ * there. It matters because an order doc is readable by the buyer, the seller
+ * and admins, and Firestore has no field-level read control — whatever lands
+ * here is visible to the BUYER immediately. Collecting it only after
+ * verification matches the gate revealCounterpartyContact already applies to
+ * the seller's phone instead of quietly widening it.
+ *
+ * Admins may submit too: CS fills this in over the phone for a seller who
+ * will not use the form.
+ *
+ * The address and phone are re-validated SERVER-SIDE. The buyer's equivalent
+ * is not (orderPaymentSubmit.js persists deliveryAddress straight from the
+ * payload) — that is a gap, not a pattern to copy.
+ */
+exports.submitPickupDetails = functions.runWith({ cors: true }).https.onCall(async (data, context) => {
+  if (!context.auth) {
+    throw new functions.https.HttpsError('unauthenticated', 'يجب تسجيل الدخول أولاً.');
+  }
+  const orderId = data && data.orderId;
+  if (!orderId) {
+    throw new functions.https.HttpsError('invalid-argument', 'معرّف الطلب مطلوب.');
+  }
+  try {
+    const orderRef = db.collection('orders').doc(orderId);
+    const orderSnap = await orderRef.get();
+    if (!orderSnap.exists) {
+      throw new functions.https.HttpsError('not-found', 'الطلب غير موجود.');
+    }
+    const order = orderSnap.data() || {};
+
+    const callerSnap = await db.collection('users').doc(context.auth.uid).get();
+    const isAdmin = callerIsAdmin(callerSnap.exists ? callerSnap.data() : {});
+
+    const patch = resolvePickupSubmission({ order }, context.auth.uid, isAdmin, data);
+    // update(), NOT set({merge:true}). This path must never bring an order into
+    // existence — it throws not-found above if there is no order — and update()
+    // enforces that at the database rather than trusting the check. It also
+    // keeps orderRepairWiring's "no order-creating path skips resolveSettlement"
+    // net meaningful: silencing that guard by adding this callable to its
+    // allowlist would widen the net for every future path too.
+    await orderRef.update({ ...patch, pickupSubmittedAt: admin.firestore.Timestamp.now() });
+
+    console.log(`[submitPickupDetails] order=${orderId} by=${context.auth.uid} admin=${isAdmin}`);
+    return { success: true, pickupAddress: patch.pickupAddress, pickupPhone: patch.pickupPhone, pickupName: patch.pickupName };
+  } catch (error) {
+    if (error instanceof functions.https.HttpsError) throw error;
+    console.error('Error in submitPickupDetails:', error);
+    const code = ['not-found', 'permission-denied', 'failed-precondition', 'invalid-argument'].includes(error.code) ? error.code : 'internal';
+    throw new functions.https.HttpsError(code, error.message || 'تعذر حفظ بيانات الاستلام.');
   }
 });
 
