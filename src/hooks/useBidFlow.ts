@@ -45,7 +45,7 @@ export function resolveConfirm(pendingAmount: number, latestMin: number): Confir
  * can branch on success/failure.
  */
 export function useBidFlow(execute: BidExecute) {
-  const { currentUser, isAuthenticated, setShowSubscriptionPrompt, setShowPhotoGate, setContactModalOpen, setProfileFieldPrompt, requestSignIn } = useApp();
+  const { currentUser, isAuthenticated, openSubscriptionPrompt, setShowPhotoGate, setContactModalOpen, setProfileFieldPrompt, requestSignIn } = useApp();
   const isMember = isActiveMember(currentUser, serverNow());
   const isGuest = !isAuthenticated;
   // A bid puts a name in the history and on the order, so it cannot be placed
@@ -79,7 +79,7 @@ export function useBidFlow(execute: BidExecute) {
       return;
     }
     if (decision === 'membership') {
-      setShowSubscriptionPrompt(true);
+      openSubscriptionPrompt('bid_gate');
       return;
     }
     if (decision === 'name') {
@@ -103,7 +103,7 @@ export function useBidFlow(execute: BidExecute) {
       return;
     }
     setPendingBid(amount);
-  }, [isAuthenticated, isMember, hasName, hasPhoto, contactComplete, requestSignIn, setShowSubscriptionPrompt, setShowPhotoGate, setContactModalOpen, setProfileFieldPrompt]);
+  }, [isAuthenticated, isMember, hasName, hasPhoto, contactComplete, requestSignIn, openSubscriptionPrompt, setShowPhotoGate, setContactModalOpen, setProfileFieldPrompt]);
 
   const cancelBid = useCallback(() => setPendingBid(null), []);
 

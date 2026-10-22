@@ -35,9 +35,13 @@ describe('isAdminUser', () => {
     expect(isAdminUser({ role: 'user', isAdmin: false })).toBe(false);
   });
 
-  it('SPOOF CASE: user-writable admin doc email does NOT grant admin', () => {
+  it('SPOOF CASE: a user-writable email field does NOT grant admin', () => {
+    // `email` on the user DOC is writable by that user; `role` is not. No
+    // address is privileged anywhere any more, so this pins the general
+    // property rather than one special case: isAdminUser reads role/isAdmin
+    // and nothing else, whatever the email says.
     const spoofed = {
-      email: 'admaaqaba06@gmail.com',
+      email: 'someone@example.com',
       role: 'user',
     } as Pick<User, 'role' | 'isAdmin'> & { email: string };
     expect(isAdminUser(spoofed)).toBe(false);

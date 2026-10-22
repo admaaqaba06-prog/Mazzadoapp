@@ -3,6 +3,7 @@ import { useApp } from '../context/AppContext';
 import { db, getCallableFunction } from '../services/firebase';
 import { collection, query, where, onSnapshot, getDocs, writeBatch, Timestamp } from 'firebase/firestore';
 import { Film, User, ShieldAlert, Check, X, AlertCircle, RotateCcw } from 'lucide-react';
+import { isAdminUser } from '../utils/adminAuth';
 
 export const AdminPanel: React.FC = () => {
   const { users, currentUser, setUsers, addNotification, language, escrows, setBids, approveListing, rejectListing } = useApp();
@@ -194,7 +195,11 @@ export const AdminPanel: React.FC = () => {
     showToast(isAr ? 'تم رفض الاشتراك' : 'Subscription rejected', 'warning');
   };
 
-  if (!currentUser || currentUser.role !== 'admin') {
+  // isAdminUser accepts EITHER role === 'admin' or isAdmin === true. The bare
+  // role check this replaced hid the panel from an administrator holding
+  // isAdmin:true without role:'admin' — which is the shape a console grant
+  // produces, and would have made the role migration look broken.
+  if (!currentUser || !isAdminUser(currentUser)) {
     return null;
   }
 

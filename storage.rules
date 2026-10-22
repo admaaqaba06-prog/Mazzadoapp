@@ -11,12 +11,36 @@ service firebase.storage {
       return request.auth != null && request.auth.uid == userId;
     }
 
+    /**
+     * Administrative access, from the SAME record firestore.rules reads.
+     *
+     * This accepted `request.auth.token.admin == true` or a hardcoded email.
+     * Nothing ever called setCustomUserClaims, so the claim was never set and
+     * the email literal was the only working admin path for Storage — which
+     * is why it was kept one deploy longer than the rest, as the fallback
+     * that made the role path safe to switch on. The role path is confirmed
+     * working, so the fallback goes.
+     *
+     * A custom claim was considered as the replacement and rejected: it would
+     * be a SECOND source of truth alongside users/{uid}.role, the two can
+     * diverge (a console edit changes the role and not the claim), and a claim
+     * cannot be revoked promptly because it lives in the ID token until it
+     * refreshes — up to an hour. For the one action you most want instant, that
+     * is the wrong property.
+     *
+     * Reading Firestore costs a lookup, but every caller reaches this through
+     * `isOwner(userId) || isAdmin()`, and rules short-circuit — so an ordinary
+     * owner fetching their own receipt never triggers it. It is evaluated for
+     * an admin reading someone else's file, or a delete.
+     *
+     * NOTE: `role` only. firestore.rules also honours the older `isAdmin`
+     * mirror; both writers set the two fields together, so do not hand-edit a
+     * user document to set just one.
+     */
     function isAdmin() {
       return request.auth != null &&
-        (
-          request.auth.token.admin == true ||
-          request.auth.token.email == "admaaqaba06@gmail.com"
-        );
+        firestore.exists(/databases/(default)/documents/users/$(request.auth.uid)) &&
+        firestore.get(/databases/(default)/documents/users/$(request.auth.uid)).data.role == 'admin';
     }
 
     // 1. Payment Proofs (Readable only by owner & admin; writable only by owner)
