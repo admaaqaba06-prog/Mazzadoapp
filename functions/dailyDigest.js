@@ -21,11 +21,25 @@ const AMMAN_OFFSET_MS = 3 * 60 * 60 * 1000;
 /** The digest's own log type. Part of the notifications_log key. */
 const DIGEST_TYPE = 'daily_digest';
 
-/** How far back "new" reaches. */
-const FRESH_WINDOW_MS = 24 * 60 * 60 * 1000;
+/**
+ * How far back "new" reaches. MUST MATCH THE SEND CADENCE.
+ *
+ * This was 24h while the digest ran nightly. The send is now weekly, and a
+ * weekly send with a 24-hour window would describe one day in seven: six days
+ * of new lots would be added and never mentioned to anyone, which looks from
+ * the outside like an empty marketplace rather than a narrow window.
+ */
+const FRESH_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
 
-/** One digest per user per 24h, enforced against the log — never the clock. */
-const DAILY_CAP_MS = 24 * 60 * 60 * 1000;
+/**
+ * One digest per user per cycle, enforced against the log — never the clock.
+ *
+ * Six days, not seven: the cap exists to stop a DUPLICATE inside one cycle,
+ * and a seven-day cap would reject the next scheduled send whenever it fired
+ * even slightly early. The margin absorbs that without ever allowing two
+ * messages in the same week.
+ */
+const SEND_CAP_MS = 6 * 24 * 60 * 60 * 1000;
 
 /** Most auctions in one message. More than this is a wall of text nobody reads. */
 const MAX_AUCTIONS_PER_MESSAGE = 3;
@@ -184,7 +198,7 @@ function isCapped(lastDigestAtMs, nowMs) {
   // failure mode of holding a message back is one quiet evening; the failure
   // mode of the other branch is a user messaged repeatedly.
   if (since < 0) return true;
-  return since < DAILY_CAP_MS;
+  return since < SEND_CAP_MS;
 }
 
 /** Drop auctions this user has already been sent, whatever the reason. */
@@ -317,7 +331,7 @@ module.exports = {
   AMMAN_OFFSET_MS,
   DIGEST_TYPE,
   FRESH_WINDOW_MS,
-  DAILY_CAP_MS,
+  SEND_CAP_MS,
   MAX_AUCTIONS_PER_MESSAGE,
   QUIET_START_HOUR,
   QUIET_END_HOUR,

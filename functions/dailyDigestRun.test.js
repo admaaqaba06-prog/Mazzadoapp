@@ -162,12 +162,12 @@ describe('matching', () => {
     expect(send).toHaveBeenCalledTimes(1);
   });
 
-  it('ignores lots older than 24h and lots that are not live', async () => {
+  it('ignores lots older than the freshness window and lots that are not live', async () => {
     const { result, send } = runWith(
       {},
       {
         auctions: [
-          lot('old', 'Vehicles', { createdAt: AT(19) - 40 * 3600_000 }),
+          lot('old', 'Vehicles', { createdAt: AT(19) - 8 * 24 * 3600_000 }),
           lot('ended', 'Vehicles', { status: 'ended' }),
         ],
         users: [user('u1')],
@@ -235,10 +235,13 @@ describe('the caps', () => {
       {
         auctions: [lot('a', 'Vehicles')],
         users: [user('u1')],
-        // Already sent yesterday; the per-user cap has since expired.
+        // Sent over a week ago, so the six-day per-user cap has genuinely
+        // expired. That matters: with a shorter gap the cap would be what
+        // blocks the send, and this test would silently stop exercising the
+        // per-AUCTION dedupe it is named after.
         log: {
-          u1_a_daily_digest: { uid: 'u1', auctionId: 'a', type: 'daily_digest', sentAt: AT(19) - 48 * 3600_000 },
-          'u1__cap_daily_digest': { uid: 'u1', sentAt: AT(19) - 48 * 3600_000 },
+          u1_a_daily_digest: { uid: 'u1', auctionId: 'a', type: 'daily_digest', sentAt: AT(19) - 8 * 24 * 3600_000 },
+          'u1__cap_daily_digest': { uid: 'u1', sentAt: AT(19) - 8 * 24 * 3600_000 },
         },
       },
     );

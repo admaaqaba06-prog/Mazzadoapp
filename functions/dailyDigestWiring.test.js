@@ -27,7 +27,8 @@ describe('the schedule', () => {
   it('takes the hour from config, not a literal in the cron string', () => {
     const src = idx();
     expect(src).toMatch(/process\.env\.DIGEST_HOUR/);
-    expect(src).toMatch(/\.schedule\(`\$\{DIGEST_MINUTE\} \$\{DIGEST_HOUR\} \* \* \*`\)/);
+    expect(src).toMatch(/\.schedule\(`\$\{DIGEST_MINUTE\} \$\{DIGEST_HOUR\} \* \* \$\{DIGEST_DAY\}`\)/);
+    expect(src).toMatch(/process\.env\.DIGEST_DAY/);
   });
 
   it('falls back to 19:00 when the env var is absent or nonsense', () => {
