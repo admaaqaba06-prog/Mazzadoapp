@@ -84,6 +84,7 @@ import { displayOrderRef } from '../utils/orderRef';
 import { validateDescription } from '../utils/listingDescription';
 import ListingImage from './ui/ListingImage';
 import { rejectionPresetLabel } from '../utils/rejectionReasons';
+import SellerDetailsForm from './seller/SellerDetailsForm';
 
 /** ORDER-status pill (bg/text/border) classes per glossary tone — keeps the
  *  seller orders table's brand-orange default while the label comes from the
@@ -390,6 +391,12 @@ export const SellerCenterView: React.FC = () => {
   const { auctions, setAuctions } = useAuctions();
 
   const isAr = language === 'ar';
+
+  // This seller's own public profile doc, for the details form.
+  const mySellerProfile = React.useMemo(
+    () => sellerProfiles.find((p: any) => p.userId === currentUser?.id || p.id === currentUser?.id),
+    [sellerProfiles, currentUser?.id]
+  );
   const st = isAr ? sellerTranslations.ar : sellerTranslations.en;
 
   const [activeTab, setActiveTab] = useState<'overview' | 'listings' | 'orders' | 'money' | 'analytics'>('overview');
@@ -1189,6 +1196,17 @@ export const SellerCenterView: React.FC = () => {
           {/* ======================= SECTION 1: OVERVIEW ======================= */}
           {activeTab === 'overview' && (
             <div className="space-y-6" id="tab-overview">
+
+              {/* The seller's own details. Lives here rather than behind a tab
+                  because until now the seller could not edit their public
+                  shopfront at all, and their governorate was invented for them. */}
+              {currentUser?.id && (
+                <SellerDetailsForm
+                  sellerId={currentUser.id}
+                  profile={mySellerProfile}
+                  isAr={isAr}
+                />
+              )}
 
               {/* NEEDS YOUR ACTION — the hub */}
               <div className="space-y-3" id="action-hub">

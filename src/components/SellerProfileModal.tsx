@@ -7,6 +7,7 @@ import { Review } from '../types';
 import { resolveAvatarUrl } from '../utils/avatarPlaceholder';
 import { sellerReputation } from '../utils/reputation';
 import { StarRating } from './ui/StarRating';
+import { JORDAN_GOVERNORATES } from '../utils/jordanCities';
 import {
   X, ShieldCheck, MapPin, Calendar, Award, Star, 
   Users, Percent, Clock, AlertTriangle, MessageSquare, 
@@ -40,6 +41,21 @@ export const SellerProfileModal: React.FC<SellerProfileModalProps> = ({ sellerId
   const profile = useMemo(() => {
     return sellerProfiles.find(p => p.userId === sellerId) || sellerProfiles.find(p => p.id === sellerId);
   }, [sellerProfiles, sellerId]);
+
+  /**
+   * The seller's location, or null when we genuinely do not know it.
+   *
+   * `location` is a free-text field that nothing currently writes, so this is
+   * null for every seller today and the row is hidden. It resolves a stored
+   * governorate id ('irbid') to its display name so that when the field does
+   * start being collected, the profile reads «إربد» and not «irbid».
+   */
+  const sellerLocationLabel = useMemo(() => {
+    const raw = (profile?.location ?? '').trim();
+    if (!raw) return null;
+    const gov = JORDAN_GOVERNORATES.find(g => g.id === raw.toLowerCase());
+    return gov ? (isAr ? gov.ar : gov.en) : raw;
+  }, [profile?.location, isAr]);
 
   // Load reviews on-demand
   useEffect(() => {
@@ -344,16 +360,27 @@ export const SellerProfileModal: React.FC<SellerProfileModalProps> = ({ sellerId
 
           </div>
 
-          {/* Location & Dates row */}
+          {/* Location & Dates row.
+              BOTH OF THESE USED TO BE INVENTED. Location fell back to «عمان،
+              الأردن» and the join date to 'June 2026', so every seller on the
+              platform was shown as an Amman seller who joined in June —
+              including sellers in Irbid and Aqaba, and accounts opened last
+              week. `location` is in fact never written by anything, so the
+              fallback was the ONLY value this line ever rendered.
+              A fact we do not have is now simply not shown. */}
           <div className="flex flex-wrap items-center gap-4 text-zinc-400 text-xs mb-6 pb-4 border-b border-zinc-800">
-            <div className="flex items-center gap-1.5 font-bold">
-              <MapPin className="w-4 h-4 text-zinc-500" />
-              <span>{profile.location || (isAr ? 'عمان، الأردن' : 'Amman, Jordan')}</span>
-            </div>
-            <div className="flex items-center gap-1.5 font-bold">
-              <Calendar className="w-4 h-4 text-zinc-500" />
-              <span>{isAr ? 'انضم' : 'Joined'} {profile.joinedDate || 'June 2026'}</span>
-            </div>
+            {sellerLocationLabel && (
+              <div className="flex items-center gap-1.5 font-bold">
+                <MapPin className="w-4 h-4 text-zinc-500" />
+                <span>{sellerLocationLabel}</span>
+              </div>
+            )}
+            {profile.joinedDate && (
+              <div className="flex items-center gap-1.5 font-bold">
+                <Calendar className="w-4 h-4 text-zinc-500" />
+                <span>{isAr ? 'انضم' : 'Joined'} {profile.joinedDate}</span>
+              </div>
+            )}
             <div className="flex items-center gap-1.5 font-bold ml-auto">
               <Users className="w-4 h-4 text-zinc-500" />
               <span><strong>{profile.followers ?? 0}</strong> {isAr ? 'متابع' : 'followers'}</span>

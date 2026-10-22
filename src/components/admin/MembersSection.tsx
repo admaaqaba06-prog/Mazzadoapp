@@ -1,5 +1,6 @@
-import React from 'react';
-import { Users } from 'lucide-react';
+import React, { useMemo, useState } from 'react';
+import { Users, Search, Phone } from 'lucide-react';
+import { matchesMember, memberPhone } from '../../utils/memberSearch';
 import { AdminListSkeleton, EmptyState } from '../FeedbackStates';
 import AdminRoleToggle from './AdminRoleToggle';
 
@@ -22,6 +23,10 @@ export interface MembersSectionProps {
    *  isn't offered on a row that would just error. */
   currentUserId?: string;
   currentUserEmail?: string;
+  /** True account total from getCountFromServer. The live list is capped at 200
+   *  by lastSeen, so without this a search that finds nothing reads as "no such
+   *  user" when it means "not in the last 200". */
+  totalAccounts?: number | null;
 }
 
 export const MembersSection: React.FC<MembersSectionProps> = ({
@@ -33,7 +38,11 @@ export const MembersSection: React.FC<MembersSectionProps> = ({
   onUnban,
   currentUserId,
   currentUserEmail,
+  totalAccounts,
 }) => {
+  const [term, setTerm] = useState('');
+  const shown = useMemo(() => users.filter((u) => matchesMember(u, term)), [users, term]);
+  const capped = typeof totalAccounts === 'number' && totalAccounts > users.length;
   const myEmail = (currentUserEmail || '').trim().toLowerCase();
   return (
     <div className="space-y-4">
@@ -45,6 +54,32 @@ export const MembersSection: React.FC<MembersSectionProps> = ({
         <p className="text-[11px] text-fg-muted mt-1">
           {isAr ? 'عاين حسابات المشتركين وقم بتوثيق حساباتهم كبائعين معتمدين أو فرض حظر مؤقت للمخالفين.' : 'Verify user identities to certify authentic merchants or apply bidding limitations.'}
         </p>
+
+        {/* Search by name, phone, email or account id. Phone matching is on
+            normalized digits, so a number copied in any format finds the
+            account — see utils/memberSearch.ts. */}
+        <div className="relative mt-3">
+          <Search className="w-3.5 h-3.5 text-fg-muted absolute top-1/2 -translate-y-1/2 start-3 pointer-events-none" />
+          <input
+            type="search"
+            value={term}
+            onChange={(e) => setTerm(e.target.value)}
+            placeholder={isAr ? 'ابحث بالاسم أو رقم الهاتف أو البريد…' : 'Search by name, phone or email…'}
+            aria-label={isAr ? 'ابحث في الأعضاء' : 'Search members'}
+            className="w-full bg-surface-sunken border border-line rounded-xl ps-9 pe-3 py-2.5 text-xs font-bold text-fg placeholder:text-fg-muted focus:outline-none focus:border-[#FF6B00] transition-colors"
+          />
+        </div>
+
+        {/* THE CAP, SAID OUT LOUD. The live list is the 200 most recently active
+            accounts. A directory search that silently omits everyone else reads
+            as "no such user" — the same defect as the admin auction cap. */}
+        {capped && (
+          <p className="text-[10px] text-amber-700 font-bold mt-2 leading-snug">
+            {isAr
+              ? `يعرض ${users.length} من أصل ${totalAccounts} حساباً — الأحدث نشاطاً. إذا لم تجد الشخص، فقد يكون خارج هذه القائمة.`
+              : `Showing ${users.length} of ${totalAccounts} accounts — the most recently active. If someone is missing, they are outside this window.`}
+          </p>
+        )}
       </div>
 
       <div className="bg-surface-raised border border-line rounded-2xl divide-y divide-line overflow-hidden shadow-xs">
@@ -52,8 +87,8 @@ export const MembersSection: React.FC<MembersSectionProps> = ({
           <div className="p-4">
             <AdminListSkeleton />
           </div>
-        ) : users.length > 0 ? (
-          users.map((profile) => {
+        ) : shown.length > 0 ? (
+          shown.map((profile) => {
           const isOwnAccount =
             profile.id === currentUserId ||
             (!!myEmail && (profile.email || '').trim().toLowerCase() === myEmail);
@@ -79,8 +114,29 @@ export const MembersSection: React.FC<MembersSectionProps> = ({
                     </span>
                   )}
                 </div>
-                <p className="text-[10px] text-fg-muted mt-1 font-mono">
-                  {profile.email} • {profile.city || 'Jordan'}
+                {/* The phone is the point of this directory — an admin needing
+                    to call someone had to run a script with a service-account
+                    key. Admins already hold full read on `users` by rule, so
+                    this reveals nothing the browser did not already have. */}
+                {memberPhone(profile) ? (
+                  <a
+                    href={`tel:${memberPhone(profile)}`}
+                    dir="ltr"
+                    className="inline-flex items-center gap-1 text-[11px] font-mono font-black text-[#FF6B00] mt-1 hover:underline"
+                  >
+                    <Phone className="w-3 h-3 shrink-0" />
+                    {memberPhone(profile)}
+                  </a>
+                ) : (
+                  <p className="text-[10px] text-fg-muted mt-1 font-bold">
+                    {isAr ? 'لا يوجد رقم على الحساب' : 'No phone on this account'}
+                  </p>
+                )}
+                {/* `city` is genuinely optional — it is asked for at the win, not
+                    at signup. It said "Jordan" when unknown, which is a fact the
+                    account does not carry. Omitted instead. */}
+                <p className="text-[10px] text-fg-muted mt-0.5 font-mono truncate">
+                  {[profile.email, profile.city].filter(Boolean).join(' • ')}
                 </p>
               </div>
             </div>
@@ -145,8 +201,20 @@ export const MembersSection: React.FC<MembersSectionProps> = ({
         })
       ) : (
         <EmptyState
-          title={isAr ? 'لا يوجد أعضاء بعد' : 'No users yet'}
-          description={isAr ? 'لم يسجل أي مستخدمين بالمنصة بعد.' : 'No users have registered accounts on the network.'}
+          title={term.trim()
+            ? (isAr ? 'لا نتائج ضمن هذه القائمة' : 'No match in this list')
+            : (isAr ? 'لا يوجد أعضاء بعد' : 'No users yet')}
+          description={
+            term.trim()
+              // Never say "no such user" — the list is the 200 most recently
+              // active accounts, so an absent person may simply be older.
+              ? (capped
+                  ? (isAr
+                      ? `لم نجد أحداً ضمن أحدث ${users.length} حساباً — الشخص قد يكون خارج هذه القائمة.`
+                      : `No match among the ${users.length} most recently active accounts — they may be outside this window.`)
+                  : (isAr ? 'لا يوجد حساب مطابق.' : 'No account matches that search.'))
+              : (isAr ? 'لم يسجل أي مستخدمين بالمنصة بعد.' : 'No users have registered accounts on the network.')
+          }
           language={isAr ? 'ar' : 'en'}
         />
       )}
