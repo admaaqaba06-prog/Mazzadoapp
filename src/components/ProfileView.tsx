@@ -37,7 +37,7 @@ export const ProfileView: React.FC = () => {
     currentUser,
     language,
     logout,
-    setShowSubscriptionPrompt,
+    openSubscriptionPrompt,
     setActiveView,
     orders,
     setGlobalSelectedOrderId,
@@ -572,7 +572,7 @@ export const ProfileView: React.FC = () => {
 
               <button
                 type="button"
-                onClick={() => setShowSubscriptionPrompt(true)}
+                onClick={() => openSubscriptionPrompt('profile_upgrade')}
                 className="w-full bg-[#FF6B00] hover:bg-orange-600 text-white font-sans font-black text-xs py-3 px-4 rounded-2xl shadow-lg shadow-[#FF6B00]/10 transition-colors flex items-center justify-center gap-2 cursor-pointer"
               >
                 <span>{isAr ? 'ترقية وتحديث الاشتراك' : 'Upgrade & Manage Plans'}</span>
