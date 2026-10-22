@@ -6831,6 +6831,21 @@ const DIGEST_MINUTE = (() => {
   const raw = Number(process.env.DIGEST_MINUTE);
   return Number.isInteger(raw) && raw >= 0 && raw <= 59 ? raw : 0;
 })();
+/**
+ * Day of week for the send, cron convention (0 = Sunday .. 6 = Saturday).
+ *
+ * WEEKLY, NOT NIGHTLY. A daily ping is the reason people mute a sender, and
+ * muting costs far more than one skipped message: the channel is gone for
+ * every future lot too.
+ *
+ * Thursday by default — it lands before the Friday evening event and while
+ * people are deciding what to do with the weekend. Config, not a literal, for
+ * the same reason the hour is.
+ */
+const DIGEST_DAY = (() => {
+  const raw = Number(process.env.DIGEST_DAY);
+  return Number.isInteger(raw) && raw >= 0 && raw <= 6 ? raw : 4;
+})();
 
 // A misconfigured hour is silent otherwise: the job fires, the quiet-hours gate
 // rejects it, and the logs read like a working cron that never sends.
@@ -6930,11 +6945,21 @@ async function recordDigestRun(summary) {
 /**
  * The scheduled send. 540s and 512MB because the work is one relay round trip
  * per subscriber, bounded by the concurrency limit inside the run.
+ *
+ * DO NOT RENAME THIS EXPORT, however much `dailyInterestDigest` now misleads.
+ * The name is the Cloud Function identity: renaming it deploys a SECOND
+ * function on the weekly schedule and leaves the existing one running nightly
+ * until somebody deletes it by hand. Every subscriber would get both. The
+ * misnomer is cheaper than that, and `firebase functions:delete` is a
+ * deliberate, separate step if the name is ever worth fixing.
+ *
+ * FRESH_WINDOW_MS in dailyDigest.js moved to 7 days with this. The two have to
+ * agree: a weekly cron reading a 24-hour window describes one day in seven.
  */
 exports.dailyInterestDigest = functions
   .runWith({ timeoutSeconds: 540, memory: '512MB' })
   .pubsub
-  .schedule(`${DIGEST_MINUTE} ${DIGEST_HOUR} * * *`)
+  .schedule(`${DIGEST_MINUTE} ${DIGEST_HOUR} * * ${DIGEST_DAY}`)
   .timeZone('Asia/Amman')
   .onRun(async () => {
     try {

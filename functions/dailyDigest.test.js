@@ -15,7 +15,7 @@ import {
   newRunSummary,
   QUIET_START_HOUR,
   QUIET_END_HOUR,
-  DAILY_CAP_MS,
+  SEND_CAP_MS,
 } from './dailyDigest.js';
 
 /** Build an epoch ms for a given Amman wall-clock time on 2026-09-12. */
@@ -65,9 +65,12 @@ describe('freshness', () => {
   it('accepts a lot created inside the last 24h', () => {
     expect(isFresh(now - 60_000, now)).toBe(true);
     expect(isFresh(now - 23 * 3600_000, now)).toBe(true);
+    // The send is weekly, so the window is too: a lot added on Friday is
+    // still new to someone being messaged the following Thursday.
+    expect(isFresh(now - 6 * 24 * 3600_000, now)).toBe(true);
   });
-  it('rejects anything older', () => {
-    expect(isFresh(now - 25 * 3600_000, now)).toBe(false);
+  it('rejects anything older than the cycle it describes', () => {
+    expect(isFresh(now - 8 * 24 * 3600_000, now)).toBe(false);
   });
   it('rejects a createdAt in the future', () => {
     // Clock skew or a seeded doc. Not a new lot, and treating it as one keeps
@@ -158,12 +161,12 @@ describe('log key and cap', () => {
   it('caps a user who was messaged inside 24h', () => {
     const now = amman(19);
     expect(isCapped(now - 1000, now)).toBe(true);
-    expect(isCapped(now - (DAILY_CAP_MS - 1), now)).toBe(true);
+    expect(isCapped(now - (SEND_CAP_MS - 1), now)).toBe(true);
   });
 
   it('lets a user through once the window has passed', () => {
     const now = amman(19);
-    expect(isCapped(now - DAILY_CAP_MS - 1, now)).toBe(false);
+    expect(isCapped(now - SEND_CAP_MS - 1, now)).toBe(false);
     expect(isCapped(null, now)).toBe(false);
   });
 
