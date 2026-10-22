@@ -602,6 +602,14 @@ service cloud.firestore {
             'cliqSettledAt', 'paymentMethod', 'cliqRequestAttempts',
             'cliqPaidOutOfBand', 'cliqPaidOutOfBandStatus',
             'cliqSupersededPaid', 'cliqSupersededPaidRequestId', 'cliqSupersededPaidAt',
+            // Seller pickup details — written ONLY by the submitPickupDetails
+            // callable, which enforces the paymentVerified gate and re-validates
+            // the address and phone server-side. Without this line the seller
+            // could write them straight from the browser at any time, skipping
+            // BOTH: the gate (the buyer reads this doc, and Firestore has no
+            // field-level read control) and the validation.
+            'pickupAddress', 'pickupPhone', 'pickupName',
+            'pickupSubmittedAt', 'pickupSubmittedBy',
             // Ownership of chasing an order is a Mazad ops decision — a seller
             // must not be able to reassign it away from the team member
             // accountable for it, or clear it so nobody appears responsible.
