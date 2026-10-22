@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { db, auth, getCallableFunction, OperationType, handleFirestoreError } from '../services/firebase';
 import { logAnalyticsEvent } from '../services/analyticsService';
+import type { SubscriptionPromptSource } from '../utils/membershipFunnel';
 import { isFirstBidDone, markFirstBidDone } from '../components/feedback/FirstBidCoach';
 // Direct file import (not the feedback barrel) to avoid a circular import:
 // other feedback components consume useApp from this module.
@@ -361,6 +362,12 @@ interface AppContextProps {
   // Subscription Renewal Prompt
   showSubscriptionPrompt: boolean;
   setShowSubscriptionPrompt: (show: boolean) => void;
+  /** Why the paywall was opened — recorded with every gate event so the
+   *  funnel can be split by entry point. See utils/membershipFunnel.ts. */
+  subscriptionPromptSource: SubscriptionPromptSource;
+  /** Open the paywall AND declare why. Prefer this over the raw setter:
+   *  a gate view with no source is a row nobody can act on. */
+  openSubscriptionPrompt: (source: SubscriptionPromptSource) => void;
 
   // Trust gate: "add a real photo to bid/sell" prompt
   showPhotoGate: boolean;
@@ -705,6 +712,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [activeAuctionId, setActiveAuctionId] = useState<string | null>(initialNav.auctionId ?? 'auction-rolex');
   const [activeView, setActiveView] = useState<'landing' | 'discovery' | 'live' | 'wallet' | 'orders' | 'admin' | 'upload' | 'about' | 'seller-center' | 'profile' | 'drop-builder' | 'auction-drop-builder' | 'prohibited-items'>(initialNav.view);
   const [showSubscriptionPrompt, setShowSubscriptionPrompt] = useState<boolean>(false);
+  const [subscriptionPromptSource, setSubscriptionPromptSource] = useState<SubscriptionPromptSource>('unknown');
+  /** Open the paywall and record why. Every in-app path uses this. */
+  const openSubscriptionPrompt = useCallback((source: SubscriptionPromptSource) => {
+    setSubscriptionPromptSource(source);
+    setShowSubscriptionPrompt(true);
+  }, []);
   // Trust gate: a member without a real profile photo who taps bid/sell is shown
   // the "add a photo" sheet (mirrors the subscription prompt plumbing).
   const [showPhotoGate, setShowPhotoGate] = useState<boolean>(false);
@@ -765,6 +778,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setActiveView(node.view);
     if (node.auctionId) setActiveAuctionId(node.auctionId);
     setShowNotifications(node.modal === 'notifications');
+    // THE FIFTH PATH. This is not a call site, which is why instrumenting the
+    // four callers would have silently undercounted: a deep link or a
+    // Back/Forward pop opens the paywall straight from the URL.
+    if (node.modal === 'subscription') setSubscriptionPromptSource('deeplink');
     setShowSubscriptionPrompt(node.modal === 'subscription');
     setReviewPromptOrderId(node.modal === 'review' ? (node.modalParam?.value ?? null) : null);
     setGlobalSelectedOrderId(node.modal === 'order' ? (node.modalParam?.value ?? null) : null);
@@ -3575,7 +3592,7 @@ const fetchIP = async () => {
     // through the client check only to have the server refuse them a
     // round-trip later. Same predicate both sides now.
     if (!isActiveMember(currentUser, serverNow())) {
-      setShowSubscriptionPrompt(true);
+      openSubscriptionPrompt('bid_client_gate');
       return {
         success: false,
         message: language === 'ar'
@@ -3694,7 +3711,7 @@ const fetchIP = async () => {
           void logSystemHealth('bid_fail', 'Bid Placement Failed', `Auction: ${auctionId}, Amount: ${amount} JOD, Message: ${result.data.message}`).catch(() => {});
         }
         if (result.data.message === 'MEMBERSHIP_REQUIRED') {
-          setShowSubscriptionPrompt(true);
+          openSubscriptionPrompt('bid_server_refused');
           return {
             success: false,
             message: language === 'ar'
@@ -5848,6 +5865,8 @@ const fetchIP = async () => {
       removeAutoBid,
       showSubscriptionPrompt,
       setShowSubscriptionPrompt,
+      subscriptionPromptSource,
+      openSubscriptionPrompt,
       showPhotoGate,
       setShowPhotoGate,
       showBanNotice,
@@ -5882,7 +5901,7 @@ const fetchIP = async () => {
     sellerReports, disputes, myReviews, pendingReviewOrder, reviewPromptOrderId,
     activeAuctionId, activeView, globalWalletSubView, globalSelectedOrderId,
     language, isAuthenticated, authReady, signInRequested, signInIntent, watchlist, autoBids,
-    showSubscriptionPrompt, showPhotoGate, showBanNotice, profileFieldPrompt, contactModalOpen, showNotifications, maintenanceMode, featureFlags,
+    showSubscriptionPrompt, subscriptionPromptSource, openSubscriptionPrompt, showPhotoGate, showBanNotice, profileFieldPrompt, contactModalOpen, showNotifications, maintenanceMode, featureFlags,
     systemHealthLogs,
     // Callbacks (all useCallback — stable unless their own deps change)
     placeBid, bidCooldownUntil, requestWithdrawal, acceptBelowReserve, rejectBelowReserve, confirmBelowReserve, declineBelowReserve, respondToSecondChance, requestReturn, sellerRespondToReturn, rateBuyer, rateAuction, addNotification, markAsRead,

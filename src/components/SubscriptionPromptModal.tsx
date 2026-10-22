@@ -1,22 +1,82 @@
-import React from 'react';
+import React, { useEffect, useRef } from 'react';
 import { useApp } from '../context/AppContext';
 import { ShieldCheck, ArrowRight, ArrowLeft, X } from 'lucide-react';
+import { logAnalyticsEvent } from '../services/analyticsService';
+import { canRecordGateEvent, gateMetadata } from '../utils/membershipFunnel';
 
 interface SubscriptionPromptModalProps {
   onClose: () => void;
 }
 
 export const SubscriptionPromptModal: React.FC<SubscriptionPromptModalProps> = ({ onClose }) => {
-  const { language, setActiveView } = useApp();
+  const { language, setActiveView, currentUser, subscriptionPromptSource } = useApp();
   const isAr = language === 'ar';
 
+  /**
+   * THE DENOMINATOR.
+   *
+   * Nothing recorded that this screen was ever shown. `membership_submitted`
+   * fires after the payment proof is uploaded, so the product could count who
+   * finished paying and not who was asked — see utils/membershipFunnel.ts.
+   *
+   * These fire from the MODAL rather than from the paths that open it, because
+   * one of those paths is the URL and not a call site at all. The modal is
+   * rendered conditionally, so mounting is opening.
+   */
+
+  /** Latest identity + source, so the unmount cleanup never logs a stale one. */
+  const ctxRef = useRef({ id: currentUser?.id, email: currentUser?.email, source: subscriptionPromptSource });
+  ctxRef.current = { id: currentUser?.id, email: currentUser?.email, source: subscriptionPromptSource };
+
+  const shownRef = useRef(false);
+  /** True once ANY outcome was recorded, so unmount does not double-count. */
+  const outcomeRecordedRef = useRef(false);
+
+  const record = (
+    event: 'membership_gate_shown' | 'membership_gate_dismissed' | 'membership_gate_cta',
+    extra: Record<string, unknown> = {},
+  ) => {
+    const { id, email, source } = ctxRef.current;
+    if (!canRecordGateEvent(id)) return;
+    void logAnalyticsEvent(event, id as string, email ?? null, gateMetadata(source, extra));
+  };
+
+  useEffect(() => {
+    // Ref guard, not just an empty dep array: StrictMode double-invokes effects
+    // in development, and a gate view counted twice is a denominator that
+    // flatters the conversion rate.
+    if (!shownRef.current) {
+      shownRef.current = true;
+      record('membership_gate_shown');
+    }
+    return () => {
+      // Closed without choosing: Back/Forward, or any future path that flips
+      // the flag directly. Counted, because an abandonment nobody records
+      // reads afterwards as if the gate was never shown.
+      if (shownRef.current && !outcomeRecordedRef.current) {
+        record('membership_gate_dismissed', { via: 'unmount' });
+      }
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const handleJoin = () => {
+    outcomeRecordedRef.current = true;
+    record('membership_gate_cta', { cta: 'join' });
     setActiveView('wallet');
     onClose();
   };
 
   const handleHowItWorks = () => {
+    outcomeRecordedRef.current = true;
+    record('membership_gate_cta', { cta: 'how_it_works' });
     setActiveView('about');
+    onClose();
+  };
+
+  const handleDismiss = () => {
+    outcomeRecordedRef.current = true;
+    record('membership_gate_dismissed', { via: 'close_button' });
     onClose();
   };
 
@@ -29,7 +89,7 @@ export const SubscriptionPromptModal: React.FC<SubscriptionPromptModalProps> = (
       >
         {/* Close Button */}
         <button
-          onClick={onClose}
+          onClick={handleDismiss}
           className="absolute top-4 right-4 p-1 rounded-full hover:bg-surface-sunken text-fg-muted min-w-[44px] min-h-[44px] flex items-center justify-center cursor-pointer z-10"
         >
           <X className="w-5 h-5" />
