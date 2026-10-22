@@ -25,3 +25,6 @@ scripts/admin/*.json
 *.p12
 *.pfx
 signedCert*
+
+# MAZZADO AI team — raw data exports stay local (may contain personal data)
+ops/data/*.raw.*
