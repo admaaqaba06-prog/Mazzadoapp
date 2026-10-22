@@ -506,6 +506,26 @@ export interface Order {
     notes?: string;
   };
   deliveryPhone?: string;
+  /**
+   * The SELLER's end of the courier handover, mirroring the two fields above.
+   * Written only by the `submitPickupDetails` callable, and only once
+   * `paymentVerified` is true — an order doc is readable by the buyer, the
+   * seller and admins, and Firestore has no field-level read control, so
+   * anything here is visible to the buyer the moment it lands. That gate
+   * matches the one revealCounterpartyContact applies to the seller's phone.
+   * Validated server-side in functions/pickupDetails.js.
+   */
+  pickupAddress?: {
+    governorate: string;
+    area: string;
+    building?: string;
+    notes?: string;
+  };
+  pickupPhone?: string;
+  /** Who the courier asks for — defaults to the seller's account name. */
+  pickupName?: string | null;
+  pickupSubmittedAt?: any;
+  pickupSubmittedBy?: string;
   defaultedAt?: any;
   /** Internal vendor slug copied from the auction (never buyer-facing). */
   vendorId?: string | null;

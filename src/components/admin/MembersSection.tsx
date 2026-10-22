@@ -2,6 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { Users, Search, Phone } from 'lucide-react';
 import { matchesMember, memberPhone } from '../../utils/memberSearch';
 import { AdminListSkeleton, EmptyState } from '../FeedbackStates';
+import AdminRoleToggle from './AdminRoleToggle';
 
 /**
  * Members (reference tab): the account-privilege moderation list —
@@ -160,7 +161,15 @@ export const MembersSection: React.FC<MembersSectionProps> = ({
                 }`}
               >
                 <span className={`w-1.5 h-1.5 rounded-full ${profile.isBlocked ? 'bg-red-500' : 'bg-emerald-500'}`} />
-                {profile.isBlocked ? (isAr ? 'محظور' : 'Banned') : (isAr ? 'نشط' : 'Active')}
+                {/* Grant or revoke admin. The callable re-checks the caller
+                  server side, so rendering this is a button, not authorisation. */}
+              <AdminRoleToggle
+                user={profile}
+                currentUserId={currentUserId}
+                isAr={isAr}
+              />
+
+              {profile.isBlocked ? (isAr ? 'محظور' : 'Banned') : (isAr ? 'نشط' : 'Active')}
               </span>
 
               {/* ACTION button (verb) — separate from the status pill. A banned

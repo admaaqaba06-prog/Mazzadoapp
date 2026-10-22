@@ -1,0 +1,92 @@
+name: Security — SAST (Semgrep)
+
+# Static analysis for the Bank al Etihad / Staq production-access review, and
+# for us afterwards. BAE asks for a SAST report with zero findings, plus the
+# tool configuration, the scan cadence, and the remediation process — all three
+# are answered by this file and docs/security/sast-policy.md beside it.
+#
+# Semgrep rather than SonarQube: SonarQube needs a server to host, which is a
+# standing cost and another system to secure for a team this size. Semgrep runs
+# in CI with no infrastructure, and its rulesets are versioned here where they
+# can be reviewed.
+#
+# WHY IT FAILS THE BUILD. A scanner whose findings are advisory becomes a list
+# nobody reads. `--error` makes a new finding a red build on the PR that
+# introduced it, which is the only point at which it is cheap to fix.
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  schedule:
+    # Mondays 04:00 UTC. A weekly run catches rules that Semgrep ADDS after our
+    # last commit — a repo with no pushes is not a repo with no vulnerabilities.
+    - cron: '0 4 * * 1'
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+  security-events: write   # upload SARIF to the Security tab
+
+jobs:
+  semgrep:
+    name: Semgrep
+    runs-on: ubuntu-latest
+    # The official image ships semgrep and its dependencies pinned together.
+    container:
+      image: semgrep/semgrep:1.86.0
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+
+      - name: Scan
+        # Rulesets, narrowest first:
+        #   p/javascript, p/typescript  — language-level defects
+        #   p/react                     — XSS via dangerouslySetInnerHTML, etc.
+        #   p/nodejs                    — server-side injection, path traversal
+        #   p/secrets                   — credentials committed to the repo
+        #   p/owasp-top-ten             — the list a bank's reviewer will name
+        #   p/ci                        — workflow injection, unpinned actions
+        run: |
+          semgrep scan \
+            --config p/javascript \
+            --config p/typescript \
+            --config p/react \
+            --config p/nodejs \
+            --config p/secrets \
+            --config p/owasp-top-ten \
+            --config p/ci \
+            --config .semgrep/mazzado.yml \
+            --sarif --output semgrep.sarif \
+            --metrics=off \
+            --error
+          # `--error` IS THE POINT OF THIS JOB. A scanner whose findings are
+          # advisory becomes a list nobody reads; this makes a new finding a
+          # red build on the PR that introduced it, which is the only moment
+          # it is cheap to fix.
+          #
+          # It was absent for exactly two commits, while the hardcoded admin
+          # identity was being removed from 24 places. Those are gone, the
+          # count is zero, and this line is what keeps it zero.
+          #
+          # It exits non-zero on findings of ANY severity, warnings included.
+          # If a finding is wrong, fix the RULE or narrow its paths in
+          # .semgrep/mazzado.yml — where the reasoning is reviewable — rather
+          # than deleting this flag. The remediation process is in
+          # docs/security/sast-policy.md.
+
+      - name: Upload SARIF
+        # `always()` so a FAILED scan still publishes its findings — otherwise
+        # the one run that matters is the one with no report attached.
+        if: always()
+        uses: github/codeql-action/upload-sarif@1190a975f95ce23525efb6a3fc21ea29567c1b52 # v3
+        with:
+          sarif_file: semgrep.sarif
+
+      - name: Keep the report as an artifact
+        # The review asks for a report. This is the file to attach.
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: semgrep-sarif
+          path: semgrep.sarif
+          retention-days: 90

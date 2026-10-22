@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { db, auth, getCallableFunction, OperationType, handleFirestoreError } from '../services/firebase';
 import { logAnalyticsEvent } from '../services/analyticsService';
+import type { SubscriptionPromptSource } from '../utils/membershipFunnel';
 import { isFirstBidDone, markFirstBidDone } from '../components/feedback/FirstBidCoach';
 // Direct file import (not the feedback barrel) to avoid a circular import:
 // other feedback components consume useApp from this module.
@@ -361,6 +362,12 @@ interface AppContextProps {
   // Subscription Renewal Prompt
   showSubscriptionPrompt: boolean;
   setShowSubscriptionPrompt: (show: boolean) => void;
+  /** Why the paywall was opened — recorded with every gate event so the
+   *  funnel can be split by entry point. See utils/membershipFunnel.ts. */
+  subscriptionPromptSource: SubscriptionPromptSource;
+  /** Open the paywall AND declare why. Prefer this over the raw setter:
+   *  a gate view with no source is a row nobody can act on. */
+  openSubscriptionPrompt: (source: SubscriptionPromptSource) => void;
 
   // Trust gate: "add a real photo to bid/sell" prompt
   showPhotoGate: boolean;
@@ -705,6 +712,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [activeAuctionId, setActiveAuctionId] = useState<string | null>(initialNav.auctionId ?? 'auction-rolex');
   const [activeView, setActiveView] = useState<'landing' | 'discovery' | 'live' | 'wallet' | 'orders' | 'admin' | 'upload' | 'about' | 'seller-center' | 'profile' | 'drop-builder' | 'auction-drop-builder' | 'prohibited-items'>(initialNav.view);
   const [showSubscriptionPrompt, setShowSubscriptionPrompt] = useState<boolean>(false);
+  const [subscriptionPromptSource, setSubscriptionPromptSource] = useState<SubscriptionPromptSource>('unknown');
+  /** Open the paywall and record why. Every in-app path uses this. */
+  const openSubscriptionPrompt = useCallback((source: SubscriptionPromptSource) => {
+    setSubscriptionPromptSource(source);
+    setShowSubscriptionPrompt(true);
+  }, []);
   // Trust gate: a member without a real profile photo who taps bid/sell is shown
   // the "add a photo" sheet (mirrors the subscription prompt plumbing).
   const [showPhotoGate, setShowPhotoGate] = useState<boolean>(false);
@@ -765,6 +778,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setActiveView(node.view);
     if (node.auctionId) setActiveAuctionId(node.auctionId);
     setShowNotifications(node.modal === 'notifications');
+    // THE FIFTH PATH. This is not a call site, which is why instrumenting the
+    // four callers would have silently undercounted: a deep link or a
+    // Back/Forward pop opens the paywall straight from the URL.
+    if (node.modal === 'subscription') setSubscriptionPromptSource('deeplink');
     setShowSubscriptionPrompt(node.modal === 'subscription');
     setReviewPromptOrderId(node.modal === 'review' ? (node.modalParam?.value ?? null) : null);
     setGlobalSelectedOrderId(node.modal === 'order' ? (node.modalParam?.value ?? null) : null);
@@ -1013,7 +1030,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           const userSnap = await getDoc(userRef);
           
           let fbData: any = {};
-          const isGoogleAdmin = user.email?.toLowerCase().trim() === 'admaaqaba06@gmail.com';
           if (!userSnap.exists()) {
             const freshUserDoc = {
               id: user.uid,
@@ -1021,7 +1037,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
               name: user.displayName || (user.email ? user.email.split('@')[0] : 'User'),
               email: user.email || '', // phone/email-less providers: write '' (never a fabricated email) so the users create rule passes
               avatar: user.photoURL || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=150&q=80',
-              role: isGoogleAdmin ? 'admin' : 'user',
+              role: 'user',
               phoneNumber: user.phoneNumber || '',
               phone: user.phoneNumber || '',
               city: '',
@@ -1055,11 +1071,18 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           }
 
           // Build user state object mimicking post-login steps exactly
-          const idTokenResult = await user.getIdTokenResult();
-          const hasAdminClaim = !!idTokenResult.claims.admin;
-          const userEmail = user.email ? user.email.toLowerCase().trim() : '';
-          const isAdminEmail = userEmail === 'admaaqaba06@gmail.com';
-          let loadedRole: 'admin' | 'user' | 'seller' = isAdminEmail ? 'admin' : ((fbData.role === 'seller' || fbData.isSeller === true) ? 'seller' : 'user');
+          // THE STORED ROLE IS THE ONLY INPUT.
+            //
+            // This was OR-ed with a hardcoded email address and with a Firebase
+            // custom claim. The email could not be revoked without a deploy; the
+            // claim was never set by anything, and had it been, it would have been
+            // a second store that can disagree with the first. users/{uid}.role is
+            // now the single answer here, in the Cloud Functions, and in both
+            // rules files.
+            let loadedRole: 'admin' | 'user' | 'seller' =
+              (fbData.role === 'admin' || fbData.isAdmin === true)
+                ? 'admin'
+                : ((fbData.role === 'seller' || fbData.isSeller === true) ? 'seller' : 'user');
 
           const loadedUser: User = {
             id: user.uid,
@@ -1068,7 +1091,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             email: fbData.email || user.email || '',
             avatar: fbData.avatar || user.photoURL || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=150&q=80',
             role: loadedRole,
-            isAdmin: fbData.isAdmin === true || (isAdminEmail && (hasAdminClaim || fbData.role === 'admin')),
+            isAdmin: fbData.isAdmin === true || fbData.role === 'admin',
             accountStatus: fbData.accountStatus || 'active',
             isVerified: fbData.isVerified !== undefined ? fbData.isVerified : true,
             isBlocked: fbData.isBlocked !== undefined ? fbData.isBlocked : false,
@@ -1131,16 +1154,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       if (firebaseUser) {
         const uid = firebaseUser.uid;
         const userRef = doc(db, 'users', uid);
-        const userEmail = firebaseUser.email ? firebaseUser.email.toLowerCase().trim() : '';
-        const isAdminEmail = userEmail === 'admaaqaba06@gmail.com';
         
         try {
-          const idTokenResult = await firebaseUser.getIdTokenResult();
-          const hasAdminClaim = !!idTokenResult.claims.admin;
-          // Admin Dashboard must appear only if:
-          // (Firebase custom claim admin == true OR users/{uid}.role == "admin") WITH THE STRICT CONDITION that the email is admaaqaba06@gmail.com
-          let currentRole: 'admin' | 'user' = isAdminEmail ? 'admin' : 'user';
-          let isAdminField = isAdminEmail;
+          // A NEW ACCOUNT IS NEVER AN ADMINISTRATOR. These two are only the
+          // values written for a user doc that does not exist yet; the
+          // existing-user branch below reads the STORED role. They used to be
+          // seeded from a hardcoded address, which is how one email became a
+          // superuser that no amount of role management could take back.
+          const currentRole: 'admin' | 'user' = 'user';
+          const isAdminField = false;
  
           let userSnap;
           try {
@@ -1309,23 +1331,39 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
               fbData.sessionId = newSessionId;
             }
 
-            let loadedRole: 'admin' | 'user' | 'seller' = isAdminEmail ? 'admin' : ((fbData.role === 'seller' || fbData.isSeller === true) ? 'seller' : 'user');
-            
-            if (isAdminEmail && fbData.role !== 'admin') {
-              loadedRole = 'admin';
-              try {
-                await updateDoc(userRef, { role: 'admin', isAdmin: true });
-              } catch (updateErr) {
-                console.warn("Failed to automatically upgrade bootstrapped admin role in Firestore:", updateErr);
-              }
-            } else if (!isAdminEmail && fbData.role === 'admin' && fbData.isAdmin !== true) {
-              loadedRole = 'user';
-              try {
-                await updateDoc(userRef, { role: 'user', isAdmin: false });
-              } catch (downgradeErr) {
-                console.warn("Failed to automatically downgrade unauthorized admin role in Firestore:", downgradeErr);
-              }
-            }
+            // THE STORED ROLE IS THE ONLY INPUT — see the matching note in the
+            // redirect path above.
+            const loadedRole: 'admin' | 'user' | 'seller' =
+              (fbData.role === 'admin' || fbData.isAdmin === true)
+                ? 'admin'
+                : ((fbData.role === 'seller' || fbData.isSeller === true) ? 'seller' : 'user');
+
+            // ⚠️ THE BROWSER NO LONGER PROMOTES ANYONE, EITHER.
+            //
+            // This used to write `role:'admin', isAdmin:true` whenever the
+            // signed-in address matched the hardcoded one: a client granting
+            // itself privilege. firestore.rules had to carve out an explicit
+            // exception to let that write through — an exception that, by
+            // construction, was a self-promotion path for whoever held the
+            // address. The write and the exception are both gone. A role is
+            // granted by grantAdminRole or the bootstrap script, to a uid.
+            // ⚠️ THE BROWSER NO LONGER DEMOTES ANYONE.
+            //
+            // This used to be an `else if` that, for any account whose email is
+            // not the hardcoded one, wrote `role:'user', isAdmin:false` over a
+            // stored `role:'admin'`. It protected nothing: firestore.rules puts
+            // `role` and `isAdmin` on the denylist for a user updating their own
+            // document, so nobody can self-promote — the only way that field
+            // says 'admin' is that an administrator or a Cloud Function put it
+            // there. The branch existed to undo an attack the rules already make
+            // impossible.
+            //
+            // What it DID do was demote real administrators. Every admin granted
+            // by role rather than by the literal would be silently downgraded by
+            // their own browser on sign-in, and the write succeeded because at
+            // evaluation time the document still said 'admin'. Authorization is
+            // the rules' job; a client that writes privilege fields is a bug
+            // whatever it writes.
             
             loadedUser = {
               id: uid,
@@ -1334,7 +1372,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
               email: fbData.email || firebaseUser.email || '',
               avatar: fbData.avatar || firebaseUser.photoURL || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=150&q=80',
               role: loadedRole,
-              isAdmin: fbData.isAdmin === true || (isAdminEmail && (hasAdminClaim || fbData.role === 'admin')),
+              isAdmin: fbData.isAdmin === true || fbData.role === 'admin',
               accountStatus: fbData.accountStatus || 'active',
               isVerified: fbData.isVerified !== undefined ? fbData.isVerified : true,
               isBlocked: fbData.isBlocked !== undefined ? fbData.isBlocked : false,
@@ -1364,8 +1402,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             name: firebaseUser.displayName || 'User',
             email: firebaseUser.email || '',
             avatar: firebaseUser.photoURL || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=150&q=80',
-            role: isAdminEmail ? 'admin' : 'user',
-            isAdmin: isAdminEmail,
+            // Fails CLOSED: this object is built when hydration THREW, so the
+            // stored role could not be read. Guessing 'admin' from an address
+            // was the one branch that handed out privilege on an error path.
+            role: 'user',
+            isAdmin: false,
             accountStatus: 'active',
             isVerified: true,
             isBlocked: false,
@@ -1574,6 +1615,27 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           // silently stripped console-granted admins and resurrected onboarding
           isAdmin: fbData.isAdmin !== undefined ? fbData.isAdmin === true : currentUser.isAdmin,
           onboardingCompleted: fbData.onboardingCompleted !== undefined ? fbData.onboardingCompleted : currentUser.onboardingCompleted,
+          // ⚠️ THE INTERESTS SCREEN CAME BACK ON EVERY SNAPSHOT WITHOUT THESE.
+          //
+          // This object is an ALLOWLIST built from scratch, not a spread: a
+          // field that is not named here is DROPPED. saveInterests wrote
+          // `interests`/`interestsSkipped` to Firestore and mirrored them into
+          // local state correctly — and then the very snapshot that write
+          // triggered rebuilt currentUser without them, needsInterestsOnboarding
+          // saw no interests again, and the user was sent back to
+          // /onboarding/interests. Every single time, forever.
+          //
+          // That is the third time this allowlist has eaten a field; the line
+          // above records the last two. Anything saveInterests writes must be
+          // named here — interestsMergeSurvival.test.ts now asserts exactly
+          // that, so the next field added to that save cannot be forgotten.
+          interests: fbData.interests !== undefined ? fbData.interests : currentUser.interests,
+          interestsSkipped: fbData.interestsSkipped !== undefined ? fbData.interestsSkipped : currentUser.interestsSkipped,
+          // Saved in the same batch, and just as silently dropped: a user who
+          // turned WhatsApp alerts on saw the toggle flip back.
+          notifyDaily: fbData.notifyDaily !== undefined ? fbData.notifyDaily : currentUser.notifyDaily,
+          notifyFeatured: fbData.notifyFeatured !== undefined ? fbData.notifyFeatured : currentUser.notifyFeatured,
+          notifyChannel: fbData.notifyChannel !== undefined ? fbData.notifyChannel : currentUser.notifyChannel,
         };
         if (JSON.stringify(mergedUser) !== JSON.stringify(currentUser)) {
           setCurrentUser(mergedUser);
@@ -2650,7 +2712,6 @@ const fetchIP = async () => {
           await updateProfile(user, { displayName: name });
           
           const userRef = doc(db, 'users', user.uid);
-          const isAutoAdmin = cleanEmail === 'admaaqaba06@gmail.com';
           const dev = getDeviceInfo();
           const ip = await fetchIP();
           const freshUserDoc = {
@@ -2659,7 +2720,7 @@ const fetchIP = async () => {
             name: name,
             email: cleanEmail,
             avatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=150&q=80',
-            role: isAutoAdmin ? 'admin' : 'user',
+            role: 'user',
             phoneNumber: '',
             phone: '',
             city: '',
@@ -2899,7 +2960,6 @@ const fetchIP = async () => {
     const cleanEmail = email.toLowerCase().trim();
     const cleanPhone = phone.trim();
     const cleanName = name.trim();
-    const isAdminEmail = cleanEmail === 'admaaqaba06@gmail.com';
 
     // Duplicate Account & Sybil / Fraud Protection Validation via Cloud Function
     try {
@@ -2951,7 +3011,7 @@ const fetchIP = async () => {
         normalizedName: cleanName.toLowerCase().trim(),
         email: cleanEmail,
         avatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=150&q=80',
-        role: isAdminEmail ? 'admin' : 'user',
+        role: 'user',
         accountStatus: 'active',
         phoneNumber: cleanPhone || '',
         phone: cleanPhone || '',
@@ -2975,8 +3035,7 @@ const fetchIP = async () => {
       // Track successful registration in Analytics
       await logAnalyticsEvent('user_registration', user.uid, cleanEmail, {
         method: 'email_password',
-        name: cleanName,
-        isAdmin: isAdminEmail
+        name: cleanName
       });
 
       return { 
@@ -3533,7 +3592,7 @@ const fetchIP = async () => {
     // through the client check only to have the server refuse them a
     // round-trip later. Same predicate both sides now.
     if (!isActiveMember(currentUser, serverNow())) {
-      setShowSubscriptionPrompt(true);
+      openSubscriptionPrompt('bid_client_gate');
       return {
         success: false,
         message: language === 'ar'
@@ -3652,7 +3711,7 @@ const fetchIP = async () => {
           void logSystemHealth('bid_fail', 'Bid Placement Failed', `Auction: ${auctionId}, Amount: ${amount} JOD, Message: ${result.data.message}`).catch(() => {});
         }
         if (result.data.message === 'MEMBERSHIP_REQUIRED') {
-          setShowSubscriptionPrompt(true);
+          openSubscriptionPrompt('bid_server_refused');
           return {
             success: false,
             message: language === 'ar'
@@ -5806,6 +5865,8 @@ const fetchIP = async () => {
       removeAutoBid,
       showSubscriptionPrompt,
       setShowSubscriptionPrompt,
+      subscriptionPromptSource,
+      openSubscriptionPrompt,
       showPhotoGate,
       setShowPhotoGate,
       showBanNotice,
@@ -5840,7 +5901,7 @@ const fetchIP = async () => {
     sellerReports, disputes, myReviews, pendingReviewOrder, reviewPromptOrderId,
     activeAuctionId, activeView, globalWalletSubView, globalSelectedOrderId,
     language, isAuthenticated, authReady, signInRequested, signInIntent, watchlist, autoBids,
-    showSubscriptionPrompt, showPhotoGate, showBanNotice, profileFieldPrompt, contactModalOpen, showNotifications, maintenanceMode, featureFlags,
+    showSubscriptionPrompt, subscriptionPromptSource, openSubscriptionPrompt, showPhotoGate, showBanNotice, profileFieldPrompt, contactModalOpen, showNotifications, maintenanceMode, featureFlags,
     systemHealthLogs,
     // Callbacks (all useCallback — stable unless their own deps change)
     placeBid, bidCooldownUntil, requestWithdrawal, acceptBelowReserve, rejectBelowReserve, confirmBelowReserve, declineBelowReserve, respondToSecondChance, requestReturn, sellerRespondToReturn, rateBuyer, rateAuction, addNotification, markAsRead,

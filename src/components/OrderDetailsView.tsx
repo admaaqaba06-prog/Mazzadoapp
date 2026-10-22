@@ -38,6 +38,7 @@ import {
 } from 'lucide-react';
 import { Order, ReturnReason } from '../types';
 import CliqPaymentFlow from './order/CliqPaymentFlow';
+import SellerPickupForm from './order/SellerPickupForm';
 import CliqSenderReveal from './admin/CliqSenderReveal';
 import { translations } from '../utils/translations';
 import { JORDAN_GOVERNORATES, isValidCityId } from '../utils/jordanCities';
@@ -80,8 +81,9 @@ export const OrderDetailsView: React.FC<OrderDetailsViewProps> = ({ orderId, onB
    * rails are genuinely different products, not a toggle on one:
    *   'manual'  — the existing flow. The buyer transfers to our public CliQ
    *               alias themselves and uploads a receipt; an admin verifies it.
-   *   'gateway' — Bank al Etihad's embedded CliQ. We raise a request, the buyer
-   *               approves it inside their own bank app, a webhook confirms it.
+   *   'gateway' — the embedded CliQ rail. We raise a request at the bank,
+   *               the buyer approves it inside their own banking app, and a
+   *               webhook confirms it.
    * Deliberately NOT persisted: a buyer who abandons the gateway flow must be
    * able to fall back to the manual one, and a half-finished choice is not a
    * fact about the order.
@@ -428,6 +430,19 @@ export const OrderDetailsView: React.FC<OrderDetailsViewProps> = ({ orderId, onB
   // The buyer always sees the address they entered; the seller/admin see it
   // ONLY after payment is confirmed (never leak a buyer address on an unpaid order).
   const canSeeDeliveryAddress = !!order.deliveryAddress && (isBuyer || order.paymentStatus === 'paid');
+  // The seller's end of the handover, mirrored. The seller always sees their
+  // own; the BUYER sees it once the payment is in — the same rule the
+  // delivery address uses in the other direction, so neither party is exposed
+  // earlier than the other.
+  const canSeePickupAddress = !!order.pickupAddress && (isSellerViewer || order.paymentStatus === 'paid');
+  const pickupGov = order.pickupAddress
+    ? JORDAN_GOVERNORATES.find(g => g.id === order.pickupAddress!.governorate)
+    : undefined;
+  /** The seller may fill this in only once the money is verified in. */
+  const canSubmitPickup =
+    isSellerViewer &&
+    order.paymentVerified === true &&
+    !['cancelled', 'refunded'].includes(order.status);
   const deliveryGov = order.deliveryAddress
     ? JORDAN_GOVERNORATES.find(g => g.id === order.deliveryAddress!.governorate)
     : undefined;
@@ -1522,6 +1537,39 @@ export const OrderDetailsView: React.FC<OrderDetailsViewProps> = ({ orderId, onB
                   </p>
                 )}
               </div>
+
+              {/* Pickup address — the SELLER's end, mirroring the panel above.
+                  A courier needs an origin as well as a destination. */}
+              <div className="bg-surface p-4 rounded-2xl border border-line space-y-2">
+                <span className="text-[9px] text-fg-muted uppercase font-black block">{isAr ? 'عنوان الاستلام' : 'PICKUP ADDRESS'}</span>
+                {canSeePickupAddress && order.pickupAddress ? (
+                  <div className="flex gap-2.5 items-start mt-1 text-fg">
+                    <MapPin className="w-4 h-4 text-[#FF6B00] shrink-0 mt-0.5" />
+                    <div className="space-y-1 font-sans text-xs">
+                      <p className="font-black text-fg">{order.pickupName || order.sellerName}</p>
+                      <p>{isAr ? (pickupGov?.ar ?? order.pickupAddress.governorate) : (pickupGov?.en ?? order.pickupAddress.governorate)}{order.pickupAddress.area ? ` — ${order.pickupAddress.area}` : ''}</p>
+                      {order.pickupAddress.building && <p>{order.pickupAddress.building}</p>}
+                      {order.pickupAddress.notes && <p className="text-fg-muted">{order.pickupAddress.notes}</p>}
+                      {order.pickupPhone && <p className="font-mono text-[10px] text-fg-muted" dir="ltr">{order.pickupPhone}</p>}
+                    </div>
+                  </div>
+                ) : (
+                  <p className="text-[10px] text-fg-muted font-sans mt-1 leading-relaxed">
+                    {order.pickupAddress
+                      ? (isAr ? 'يظهر عنوان الاستلام للمشتري بعد تأكيد الدفع.' : 'The pickup address becomes visible to the buyer after payment is confirmed.')
+                      : (isAr ? 'يقدّم البائع عنوان الاستلام بعد تأكيد الدفع.' : 'The seller provides the pickup address once the payment is verified.')}
+                  </p>
+                )}
+              </div>
+
+              {canSubmitPickup && (
+                <SellerPickupForm
+                  order={order}
+                  isAr={isAr}
+                  defaultName={currentUser?.name ?? ''}
+                  defaultPhone={currentUser?.phoneNumber ?? currentUser?.phone ?? ''}
+                />
+              )}
             </div>
           </div>
 

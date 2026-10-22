@@ -1,0 +1,166 @@
+# Mazzado-specific static analysis.
+#
+# The public rulesets in the workflow cover language-level defects. These cover
+# the invariants THIS codebase has actually broken — each written after a real
+# incident or review finding, which is why they are worth more to us than
+# another generic pack and are the honest thing to show a bank's reviewer.
+#
+# EVERY RULE HERE IS REGEX ON `generic`, DELIBERATELY.
+#
+# The first version used Semgrep's AST patterns — `$F(..., { ..., status: 'paid',
+# ... }, ...)`, a bare JSX attribute, and language keys including an invalid
+# `typescriptreact`. The whole config failed to load with exit 7, which means
+# NO rule ran at all and the check was red for a reason unrelated to the code
+# it was meant to inspect. A config that does not load is not a weaker scan, it
+# is no scan, and it took two CI rounds to see that.
+#
+# Regex on `generic` cannot fail to parse and reads every file — including
+# firestore.rules and storage.rules, which are not JavaScript and which hold
+# four of the five hardcoded admin grants. Precision is lower than an AST
+# pattern; a rule that runs beats a rule that is theoretically sharper and
+# never executes. Where a regex would cry wolf, the path list narrows it rather
+# than the pattern.
+
+rules:
+  # -------------------------------------------------------------------------
+  - id: mazzado-hardcoded-admin-identity
+    languages: [generic]
+    severity: ERROR
+    message: >-
+      Hardcoded admin identity. Administrative access must come from the role
+      record (users/{uid}.role == 'admin'), never from an email address or uid
+      written into source. A literal identity cannot be revoked without a
+      deploy, survives the person leaving, and is published to anyone who can
+      read the repository.
+    # LOCAL PART only. firestore.rules writes the address escaped for its own
+    # regex engine — admaaqaba06@gmail\\.com — so a pattern containing
+    # `@gmail\.com` matches none of those four occurrences while appearing to
+    # cover them. Grepping the plain address in that file returns zero hits.
+    pattern-regex: (admaaqaba06|wtu2pG6X6Jc0mvhyKBCUsca2X0A2)
+    paths:
+      exclude:
+        - docs/
+        - .semgrep/
+        - '*.md'
+
+  # -------------------------------------------------------------------------
+  - id: mazzado-client-writes-money-state
+    languages: [generic]
+    severity: ERROR
+    message: >-
+      The browser must never write a money or settlement field. Orders are
+      server-created and every financial field is on the orders update denylist
+      in firestore.rules; this would either be rejected at the rules layer or,
+      if the denylist were ever loosened, let a buyer settle their own order.
+      Do it in a Cloud Function.
+    pattern-regex: >-
+      (paymentStatus|paymentVerified|cliqPaymentStatus)\s*:\s*(true|'paid'|"paid")
+    paths:
+      include:
+        - src/
+      exclude:
+        - '*.test.*'
+
+  # -------------------------------------------------------------------------
+  - id: mazzado-payer-identifier-to-analytics
+    languages: [generic]
+    severity: ERROR
+    message: >-
+      A payer's banking identifier (CliQ alias, mobile, IBAN) must never reach
+      analytics or the pixel. Send the masked form, or the bank NAME only. See
+      maskCliqIdentifier in utils/cliqIdentifier.ts.
+    pattern-regex: >-
+      (logAnalyticsEvent|fbq)\([^)]*\b(cliqPayerIdentifier|phoneNumber|iban)\b
+    paths:
+      include:
+        - src/
+      exclude:
+        - '*.test.*'
+
+  # -------------------------------------------------------------------------
+  - id: mazzado-secret-in-source
+    languages: [generic]
+    severity: ERROR
+    message: >-
+      Looks like a credential in source. Keys, tokens and certificates belong in
+      Firebase secrets. See the .gitignore rules for *.crt / *.pem / *.key.
+    pattern-regex: >-
+      (BEGIN (RSA |EC )?PRIVATE KEY|client_secret\s*[:=]\s*['"][^'"]{12,}|api[_-]?key\s*[:=]\s*['"][A-Za-z0-9_\-]{20,})
+    paths:
+      exclude:
+        - docs/
+        - .semgrep/
+        - '*.md'
+        - '*.test.*'
+
+  # -------------------------------------------------------------------------
+  - id: mazzado-bank-name-literal
+    languages: [generic]
+    severity: WARNING
+    message: >-
+      Bank names must come from CLIQ_BANK_NAME_AR/EN, never a literal. The
+      account has moved banks twice; each time, literals left behind in copy
+      told customers to look for their money at the wrong bank.
+    # QUOTE PROXIMITY, not the bare name.
+    #
+    # The bare name matched seven doc comments that legitimately name the
+    # integration partner ("Embedded CliQ (Bank al Etihad / Staq)") and
+    # nothing else: seven false positives, zero true ones. A rule with that
+    # record does not get read, it gets muted. Requiring an opening quote
+    # earlier on the SAME line, with no quote in between, keeps the string
+    # literals and drops the prose.
+    #
+    # WHAT IT MISSES: a bank name as bare JSX text, <p>Bank al Etihad</p>.
+    # Stated plainly, because a rule you believe is airtight is more
+    # dangerous than one whose edges you know. The real guard is
+    # src/constants/brandBoundary.test.ts, which asserts the constants and
+    # that no other bank's name reaches the payment copy. This is the cheap
+    # second net, not the floor.
+    pattern-regex: |-
+      ['"`][^'"`\n]{0,160}(Bank al Etihad|Jordan Ahli Bank|Al Ahli Bank)
+    paths:
+      include:
+        - src/
+      exclude:
+        - src/constants/cliq.ts
+        - src/constants/cliqGateway.ts
+        - src/utils/cliqIban.ts
+        - src/components/SellerCenterView.tsx
+        - '*.test.*'
+
+  # -------------------------------------------------------------------------
+  - id: mazzado-bank-name-literal-ar
+    languages: [generic]
+    severity: WARNING
+    message: >-
+      Arabic bank name as a literal. Use CLIQ_BANK_NAME_AR. This is the name a
+      Jordanian customer actually reads on the transfer screen, so a stale one
+      here is the version that sends somebody to the wrong bank.
+    # Separate from the English rule ONLY so each pattern line is
+    # single-direction text. An RTL alternation inside an LTR regex renders in
+    # an order that does not match the bytes, and a reviewer cannot see where
+    # the | separators actually fall.
+    pattern-regex: |-
+      ['"`][^'"`\n]{0,160}(بنك الاتحاد|البنك الأهلي)
+    paths:
+      include:
+        - src/
+      exclude:
+        - src/constants/cliq.ts
+        - src/constants/cliqGateway.ts
+        - src/utils/cliqIban.ts
+        - src/components/SellerCenterView.tsx
+        - '*.test.*'
+
+  # -------------------------------------------------------------------------
+  - id: mazzado-dangerous-html
+    languages: [generic]
+    severity: ERROR
+    message: >-
+      dangerouslySetInnerHTML renders unescaped markup. Auction titles,
+      descriptions and chat messages are user-supplied; this is a stored-XSS
+      sink. Render as text.
+    pattern-regex: dangerouslySetInnerHTML
+    paths:
+      include:
+        - src/
