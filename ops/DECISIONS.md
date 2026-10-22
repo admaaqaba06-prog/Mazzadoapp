@@ -117,3 +117,14 @@ The week-1 script still answers the other half: what happened to the bids.
 ## Approvals granted by Karam
 
 - D-119 · 2026-10-22 · **Deploy CTO-101 (membership paywall instrumentation) to production.** Approved verbally by Karam in session ("اعمل commit وانشر"). Logged here because CLAUDE.md rule 2 requires a deploy approval to be on the record, not only in a chat. Scope: the frontend only — five modified `src/` files plus three new ones. **No rules, no functions, no pricing, no copy.** Ships by merge to `main`, which triggers `firebase-hosting-deploy.yml`. · Karam · **APPROVED**
+
+- D-120 · 2026-10-22 · **Delivery pricing set by Karam. SUPERSEDES the 6 JOD in D-108 / plan task 14.** Stated: **3 JOD from Amman to all governorates**, and **"external" 5–10 JOD**. · Karam · **PARTIALLY DECIDED — two gaps block implementation:**
+  1. **What does "external" cover?** Outside Jordan, or deliveries not originating in Amman? The first line already covers Amman to every governorate, so the scope of the second is not determined by it.
+  2. **5–10 is a range, not a price.** A customer sees ONE number at checkout. What selects it — destination, weight, size, courier quote? Until that rule exists the fee cannot be rendered, and a range on a payment screen is the abandonment case plan task 14 exists to remove.
+  Also unresolved and carried over: does **free self-collection** survive? It is promised today on the same line as the fee (HowItWorksView.tsx:75).
+
+  **State of the product against this decision** (verified 2026-10-22):
+  - **No delivery-fee field exists anywhere** in `src/` or `functions/`. `totalDue` is hammer + 5% only. This is new construction, not editing a number.
+  - Live customer-facing copy says **"٢–٤ دنانير تقريباً" / "~2–4 JD"** — now wrong, and it is on the public site.
+  - The legal terms enumerate fees exhaustively **with no delivery clause at all**. Plan task 14 requires a Jordanian lawyer to review the wording before release.
+  - Nothing ships until the two gaps above are closed AND the lawyer has reviewed — per plan task 14 and CLAUDE.md rule 8.

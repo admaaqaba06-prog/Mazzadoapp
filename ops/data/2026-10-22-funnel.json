@@ -1,0 +1,162 @@
+{
+  "generatedAt": "2026-10-22T16:08:10.148Z",
+  "window": {
+    "from": "2026-08-23T16:08:10.148Z",
+    "to": "2026-10-22T16:08:10.148Z"
+  },
+  "simulatedRows": "excluded",
+  "caveats": [
+    "VISITS ARE NOT IN HERE AND CANNOT BE. The top of the funnel is not measurable from Firestore: analytics_events requires isSignedIn() so anonymous visits never reach it, and landing events go only to window.dataLayer with no GA/GTM wiring (src/landing/landingAnalytics.ts). Visit-to-registration needs GA4 or a Meta export.",
+    "Every rate here is computed over auctions that ENDED in the window. Auctions still running are reported separately and excluded — that is the plan's third hypothesis (\"just timing\") and it must not be allowed to contaminate the first two."
+  ],
+  "collectionTotals": {
+    "auctionsAllTime": 911,
+    "ordersAllTime": 54,
+    "bidsAllTime": 525,
+    "subscriptionRequestsAllTime": 89,
+    "simulatedExcluded": {
+      "auctions": 0,
+      "orders": 0
+    }
+  },
+  "q1_auctionOutcomes": {
+    "endedInWindow": 542,
+    "metReserve_sold": 11,
+    "reserveNotMet": 0,
+    "endedWithNoBids": 531,
+    "crossCheck_zeroBidsBySubcollection": 531,
+    "endedLotsCarryingAReserve": 0,
+    "endedLotsWithNoReserveAtAll": 542,
+    "reserveNotMet_withReserveAmountRecorded": 0,
+    "reserveNotMet_reserveAmountMissing": 0,
+    "reserveAmountMissing_note": "A reserve_not_met lot with NO auctionSecrets doc did not fail on price — the reserve amount was never stored (createListing write denied). Lowering reserves does not fix these; fixing the write path does.",
+    "stillRunningNow": {
+      "live": 0,
+      "upcoming": 0,
+      "processing": 0,
+      "other": 39
+    },
+    "neverStarted": {
+      "n": 330,
+      "note": "first_bid lots with no endTime — clock never started, NOT 'ended'"
+    },
+    "sellThroughVsReserve": 0.02
+  },
+  "q2_bidsPerAuction": {
+    "bidsPlacedInWindow": 189,
+    "distributionAcrossEndedAuctions": {
+      "n": 542,
+      "sum": 90,
+      "mean": 0.166,
+      "min": 0,
+      "p25": 0,
+      "median": 0,
+      "p75": 0,
+      "p90": 0,
+      "max": 38
+    },
+    "uniqueBiddersPerAuction": {
+      "n": 542,
+      "sum": 19,
+      "mean": 0.035,
+      "min": 0,
+      "p25": 0,
+      "median": 0,
+      "p75": 0,
+      "p90": 0,
+      "max": 5
+    },
+    "auctionsWithOneBidOnly": 6,
+    "auctionsWithTwoPlusBids": 5,
+    "distinctBiddersAllTime": 30,
+    "totalBidsCounterDisagreements": 0,
+    "why": "The plan's fourth hypothesis: if bids cluster on few lots, the 126:4 ratio is misleading and lot-level conversion is the honest denominator."
+  },
+  "q3_winnersPaid": {
+    "auctionsThatProducedAWinner": 11,
+    "ordersFound": 11,
+    "soldButNoOrderDocument": 0,
+    "soldButNoOrder_note": "A completed auction with no order is the anomaly repairEndedAuctionOrder exists for — a winner who was never invoiced. Counted separately because it is a bug, not a refusal to pay.",
+    "winnersWhoPaid": 1,
+    "winnersWhoDidNotPay": 10,
+    "ofWhich_formallyDefaulted": 6,
+    "ofWhich_waitingPaymentPastDeadline": 0,
+    "ofWhich_waitingPaymentStillInWindow": 0,
+    "ofWhich_cliqRequestStillLive": 0,
+    "cliqLive_note": "paymentDefaultEnforcer deliberately skips an order with a live CliQ request (functions/index.js:1619). These are payments in flight, NOT non-payers.",
+    "sweepLag_note": "'defaulted' is written only by paymentDefaultEnforcer, which runs every 30 minutes (functions/index.js:1553). Up to 30 minutes of genuinely-defaulted orders will still read as 'past deadline, not yet swept'.",
+    "winnerPaymentRate": 0.091,
+    "orderStatusDistribution": {
+      "refunded": 2,
+      "completed": 1,
+      "defaulted": 6,
+      "cancelled": 1,
+      "disputed": 1
+    },
+    "why": "The plan's second hypothesis, and the one it calls existential: if winners are not paying, every dinar of traffic spend is wasted downstream of the bid."
+  },
+  "q4_salesAndCommission": {
+    "completedSales_moneyReceived": 1,
+    "ordersReachingStatusCompleted": 1,
+    "hammerPriceDistribution": {
+      "n": 1,
+      "sum": 933,
+      "mean": 933,
+      "min": 933,
+      "p25": 933,
+      "median": 933,
+      "p75": 933,
+      "p90": 933,
+      "max": 933
+    },
+    "averageSaleValue_mean": 933,
+    "averageSaleValue_median": 933,
+    "grossMerchandiseValue": 933,
+    "commissionEarned_fromStoredFields": 93.3,
+    "commissionEarned_recomputedAt10pct": 93.3,
+    "ordersMissingStoredFeeFields": 0,
+    "note": "Take = 5% buyer premium + 5% seller commission (functions/settlement.js:244,268). Both figures are shown so a disagreement between what was stored at settlement and what the current rate implies is visible rather than averaged away. Mean AND median are both reported: with a handful of sales a single large lot moves the mean and the median does not."
+  },
+  "q5_failedHandovers": {
+    "paidOrdersConsidered": 1,
+    "sellerHasntPrepped_overdue": 0,
+    "buyerHasntConfirmed_overdue": 0,
+    "disputed": 1,
+    "refunded": 2,
+    "cancelled": 1,
+    "reachedDelivered": 0,
+    "reachedCompleted": 1,
+    "adminNudgedSeller_atLeastOnce": 0,
+    "adminNudgedSeller_totalNudges": 0,
+    "failedHandoverRate_sellerSide": 0,
+    "definition": "'Seller unreachable after winning' = a PAID order still in awaiting_shipment past the 24h SLA. This is the product's own rule (bucketOrder + isOverdue in src/utils/fulfillmentQueues.ts, surfaced as seller_hasnt_prepped in actionQueue.ts), not a definition invented here.",
+    "THIS_IS_A_PROXY_NOT_A_FACT": "Firestore records NO seller-default state. There is no seller-side sweep, no 48h seller-confirmation timer, and the server never advances shippingStatus past \"not_started\" — an absent seller simply leaves the order untouched forever. So this number is DERIVED, and it UNDERCOUNTS twice over: (1) it is point-in-time, so a lot that stalled and was later rescued by hand no longer shows; (2) the clock runs on updatedAt, which unrelated writes bump, silently resetting it (src/utils/fulfillmentQueues.ts:98-112). Treat it as a FLOOR on the failure rate, and do NOT compare it directly to the plan's stated 1-in-3 without saying so. adminNudgedSeller_* is an independent human signal — an admin chased this seller — but it exists only where an admin bothered, so it is also a floor."
+  },
+  "q6_membership": {
+    "requestStatusDistribution": {
+      "<missing>": 3,
+      "approved": 70,
+      "rejected": 16
+    },
+    "approvedInWindow": 28,
+    "approvedAllTime": 70,
+    "membershipRevenueInWindow_JOD": 67,
+    "membershipRevenueAllTime_JOD": 219,
+    "approvedByTierInWindow": {
+      "annual": 5,
+      "monthly": 20,
+      "semiannual": 3
+    },
+    "payingMembersAllTime": 53,
+    "payingMembersWhoPlacedAtLeastOneBid": 26,
+    "payingMembersWhoNeverBid": 27,
+    "memberActivationRate": 0.491,
+    "distinctBiddersAllTime": 30,
+    "why": "D-106. The membership is defended as a seriousness filter. memberActivationRate is that claim as a number: the share of people who paid and then actually bid. Compare it against the decision thresholds in the COO baseline report."
+  },
+  "q7_registrations": {
+    "unavailable": true,
+    "reason": "Credential implementation provided to initializeApp() via the \"credential\" property has insufficient permission to access the requested resource. See https://firebase.google.com/docs/admin/setup for details on how to authenticate this SDK with appropriate permissions.",
+    "note": "Firebase Auth could not be listed — the service-account key probably lacks the Firebase Authentication Admin role. Registration counts are therefore MISSING, not zero. Every other section above is unaffected."
+  }
+}

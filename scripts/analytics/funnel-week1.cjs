@@ -86,16 +86,43 @@
  *   node scripts/analytics/funnel-week1.cjs --include-simulated   # debugging only
  */
 
+/**
+ * Load a firebase-admin that actually has the API this script uses.
+ *
+ * A SUCCESSFUL REQUIRE IS NOT ENOUGH. The repo root carries firebase-admin
+ * v14, whose modular API exposes `applicationDefault` at the top level and has
+ * no `admin.credential`, no `admin.firestore()` and no `admin.auth()`. Requiring
+ * it succeeds, and then the very next line dies with
+ * "Cannot read properties of undefined (reading 'applicationDefault')" — an
+ * error that points at the credential and blames the key, when the key is fine
+ * and the module is simply the wrong shape.
+ *
+ * functions/ pins v11, which is the namespaced API this script is written
+ * against. So: check the shape, take the first candidate that has it, and say
+ * plainly what was rejected when none does.
+ */
 function loadAdmin() {
-  const candidates = ['../loadtest/node_modules/firebase-admin', 'firebase-admin'];
+  const candidates = [
+    '../../functions/node_modules/firebase-admin', // v11 — namespaced, what we want
+    '../loadtest/node_modules/firebase-admin',
+    'firebase-admin',
+  ];
+  const rejected = [];
   for (const c of candidates) {
     try {
-      return require(c.startsWith('.') ? require('path').join(__dirname, c) : c);
+      const mod = require(c.startsWith('.') ? require('path').join(__dirname, c) : c);
+      if (mod && mod.credential && typeof mod.firestore === 'function' && typeof mod.auth === 'function') {
+        return mod;
+      }
+      rejected.push(`${c} (loaded, but no namespaced credential/firestore/auth — likely v13+)`);
     } catch (e) {
-      if (process.env.DEBUG_ADMIN_LOAD) console.error('  loader miss', c, '::', e.message.split('\n')[0]);
+      rejected.push(`${c} (${e.message.split('\n')[0]})`);
     }
   }
-  console.error('firebase-admin not found. Run `npm ci` in scripts/loadtest.');
+  console.error('\n  No usable firebase-admin found. Tried:');
+  rejected.forEach((r) => console.error('    - ' + r));
+  console.error('\n  This script needs the NAMESPACED API (admin.credential / admin.firestore()).');
+  console.error('  functions/node_modules carries it. Run `npm ci` in functions/ if it is missing.\n');
   process.exit(1);
 }
 
