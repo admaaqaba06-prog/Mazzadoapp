@@ -163,8 +163,8 @@ export const translations: Record<"ar" | "en", TranslationType> = {
       titleBefore: "آيفون ",
       titleAccent: "17",
       titleAfter: " برو ماكس",
-      subtitle: "فرصتك لامتلاك أحدث آيفون … بسعر أفضل!",
-      openingPrice: "يبدأ من 1 دينار فقط",
+      subtitle: "آيفون 17 برو ماكس — مزاد علني. السعر يحدده السوق.",
+      openingPrice: "سعر الافتتاح يحدده البائع",
       units: { days: "أيام", hours: "ساعات", minutes: "دقائق", seconds: "ثواني" },
       ctaRegister: "سجّل للمزايدة",
       ctaDetails: "عرض التفاصيل",
@@ -177,7 +177,7 @@ export const translations: Record<"ar" | "en", TranslationType> = {
     },
     hero: {
       badge: "منصة مزادات ذكية للسوق الأردني 🇯🇴",
-      titleFirst: "اشترِ بأرخص سعر.",
+      titleFirst: "السعر يحدده السوق.",
       titleGradient: "بِع أسرع.",
       // Two lines now, not three. The third span is guarded in LandingView so an
       // empty string does not leave a flex gap where a line used to be.
@@ -187,17 +187,17 @@ export const translations: Record<"ar" | "en", TranslationType> = {
       ctaSecondary: "اعرض سلعتك للبيع",
       sellerNote: "نزّل سلعتك وابدأ مزادك خلال دقائق",
       proof: [
-        { value: "توصيل خلال 48 ساعة", label: "داخل عمّان ومحيطها" },
+        { value: "استلام أو توصيل مدفوع", label: "داخل عمّان ومحيطها" },
         { value: "بدون فصال", label: "السوق بيحدد السعر" },
         { value: "تمديد تلقائي", label: "إذا زايدت بآخر الثواني" },
       ],
       liveBadge: "مباشر الآن",
       verifiedSeller: "✓ بائع موثق",
       carTitle: "تويوتا كامري 2022",
-      carDetails: "صور حقيقية · عمّان · مزاد مميز",
+      carDetails: "مثال توضيحي · عمّان · مزاد مميز",
       currentPrice: "السعر الحالي",
       bidBtn: "زايد الآن (+250 د.أ)",
-      features: ["🔒 دفع آمن", "🔥 منافسة حقيقية", "⏱ تمديد تلقائي للوقت"],
+      features: ["🔒 دفع محجوز", "مزايدة علنية", "⏱ تمديد تلقائي للوقت"],
       seconds: "ثانية",
       minutes: "دقيقة",
     },
@@ -208,8 +208,8 @@ export const translations: Record<"ar" | "en", TranslationType> = {
       cards: [
         {
           icon: "🛡️",
-          title: "بائعون موثّقون",
-          desc: "نتحقق من هوية البائع قبل عرض أي منتج، لتزايد بثقة.",
+          title: "كل إعلان مُراجَع",
+          desc: "كل إعلان يمر بمراجعة فريقنا قبل النشر.",
         },
         {
           icon: "🔍",
@@ -250,8 +250,8 @@ export const translations: Record<"ar" | "en", TranslationType> = {
       title: "تجربة تفاعلية",
       subtitle: "جرّب المزاد الحي الآن.",
       stats: [
-        { value: "%98", label: "تركيز على الثقة" },
-        { value: "3≤", label: "خطوات للمزايدة" },
+        { value: "علني", label: "كل مزايدة ظاهرة" },
+        { value: "3", label: "خطوات للمزايدة" },
         { value: "7 أيام", label: "مزاد مقترح للسلعة" },
         { value: "24/7", label: "تنبيهات ومتابعة" },
       ],
@@ -260,7 +260,7 @@ export const translations: Record<"ar" | "en", TranslationType> = {
       participantsLabel: "المزايدون المؤهلون",
       bidButton: "زايد الآن (+250 د.أ)",
       secureBadge: "🔒 مزايدة آمنة ومحمية",
-      competitorsBadge: "🔥 منافسة نشطة",
+      competitorsBadge: "مزايدات مباشرة",
       autoExtendBadge: "⏱ تمديد تلقائي للوقت",
       bidLogYou: "أنت (مزايد جديد)",
       bidsTitle: "سجل المزايدة اللحظي",
@@ -272,7 +272,7 @@ export const translations: Record<"ar" | "en", TranslationType> = {
         {
           icon: "🚗",
           title: "سيارات",
-          desc: "سيارات بصور حقيقية وتفاصيل واضحة وإجراءات نقل ملكية آمنة.",
+          desc: "سيارات بتفاصيل واضحة وإجراءات نقل ملكية آمنة.",
         },
         {
           icon: "🏠",
@@ -282,7 +282,7 @@ export const translations: Record<"ar" | "en", TranslationType> = {
         {
           icon: "💻",
           title: "إلكترونيات",
-          desc: "موبايلات مميزة، لابتوبات احترافية، وأجهزة ذكية بصور حقيقية.",
+          desc: "موبايلات مميزة، لابتوبات احترافية، وأجهزة ذكية.",
         },
         {
           icon: "🏗️",
@@ -303,7 +303,7 @@ export const translations: Record<"ar" | "en", TranslationType> = {
     },
     howItWorks: {
       title: "كيف يعمل؟",
-      subtitle: "بساطة كاملة من الإعلان إلى الفوز.",
+      subtitle: "من الإدراج حتى الإغلاق — خطوات واضحة.",
       steps: [
         {
           title: "أنشئ مزادك",
@@ -315,7 +315,7 @@ export const translations: Record<"ar" | "en", TranslationType> = {
         },
         {
           title: "أغلق الصفقة",
-          desc: "بمجرد انتهاء الوقت لصالح المزايد الأعلى، نضمن لك الدفع الآمن ونرتب عملية نقل الملكية بكل سلاسة.",
+          desc: "بمجرد انتهاء الوقت لصالح المزايد الأعلى، الدفع بيضل محجوز عند مزادو لحد ما تستلم وتتأكد، وبنرتب نقل الملكية.",
         },
       ],
     },
@@ -339,11 +339,11 @@ export const translations: Record<"ar" | "en", TranslationType> = {
     },
     faq: {
       title: "الأسئلة الشائعة",
-      subtitle: "كل ما تود معرفته عن الاشتراك، المشاركة، العمولات، والضمانات في Mazzado",
+      subtitle: "كل ما تود معرفته عن الاشتراك، المشاركة، العمولات، وحماية المشتري في Mazzado",
       items: [
         {
           q: "لماذا يوجد اشتراك للمزايدة؟",
-          a: "الاشتراك يضمن جدية المزايدين. مقابل دينار واحد شهرياً تحصل على مزايدة غير محدودة على قطع موثقة بالكامل — وهذا يمنع المزايدات الوهمية ويحافظ على عدالة المزاد للجميع."
+          a: "الاشتراك خطوة صغيرة قبل المزايدة. مقابل دينار واحد شهرياً تحصل على مزايدة غير محدودة على قطع يراجعها فريقنا قبل النشر — وبيساعد على تقليل المزايدات الوهمية."
         },
         {
           q: "كيف أدفع؟",
@@ -368,7 +368,7 @@ export const translations: Record<"ar" | "en", TranslationType> = {
       ]
     },
     footer: {
-      desc: "منصة المزادات الحديثة الأولى في المملكة الأردنية الهاشمية - بيع أسرع، تزايد بذكاء، واربح بثقة.",
+      desc: "منصة مزادات علنية في الأردن — السعر يحدده السوق، والرسوم معلنة.",
       links: {
         whyUs: "لماذا نحن؟",
         categories: "الفئات",
@@ -412,8 +412,8 @@ export const translations: Record<"ar" | "en", TranslationType> = {
       titleBefore: "iPhone ",
       titleAccent: "17",
       titleAfter: " Pro Max",
-      subtitle: "Your chance to own the newest iPhone — for less.",
-      openingPrice: "Opening bid: just 1 JOD",
+      subtitle: "iPhone 17 Pro Max — a public auction. The market sets the price.",
+      openingPrice: "Opening price set by the seller",
       units: { days: "Days", hours: "Hours", minutes: "Minutes", seconds: "Seconds" },
       ctaRegister: "Register to bid",
       ctaDetails: "View details",
@@ -424,7 +424,7 @@ export const translations: Record<"ar" | "en", TranslationType> = {
     },
     hero: {
       badge: "Smart Auction Platform for Jordan 🇯🇴",
-      titleFirst: "Buy for less.",
+      titleFirst: "The market sets the price.",
       titleGradient: "Sell faster.",
       titleLast: "",
       desc: "Your money is held by Mazzado — the seller is paid only after you receive and confirm.",
@@ -432,17 +432,17 @@ export const translations: Record<"ar" | "en", TranslationType> = {
       ctaSecondary: "List your item",
       sellerNote: "List your item and start your auction in minutes",
       proof: [
-        { value: "Delivered in 48 hours", label: "Amman and nearby areas" },
+        { value: "Pickup or paid delivery", label: "Amman and nearby areas" },
         { value: "No haggling", label: "the market sets the price" },
         { value: "Auto-extend", label: "If you bid in the final seconds" },
       ],
       liveBadge: "Live Now",
       verifiedSeller: "✓ Verified Seller",
       carTitle: "Toyota Camry 2022",
-      carDetails: "Real Photos · Amman · Premium Auction",
+      carDetails: "Illustrative example · Amman · Premium Auction",
       currentPrice: "Current Price",
       bidBtn: "Bid Now (+250 JOD)",
-      features: ["🔒 Secure Payment", "🔥 Real Competition", "⏱ Auto-Extension"],
+      features: ["🔒 Payment held", "Public bidding", "⏱ Auto-Extension"],
       seconds: "sec",
       minutes: "min",
     },
@@ -453,8 +453,8 @@ export const translations: Record<"ar" | "en", TranslationType> = {
       cards: [
         {
           icon: "🛡️",
-          title: "Verified Sellers",
-          desc: "We verify every seller's identity before any product is listed.",
+          title: "Every listing reviewed",
+          desc: "Every listing is reviewed by our team before it goes live.",
         },
         {
           icon: "🔍",
@@ -495,8 +495,8 @@ export const translations: Record<"ar" | "en", TranslationType> = {
       title: "Interactive Experience",
       subtitle: "The feel of a live auction — try it right now.",
       stats: [
-        { value: "98%", label: "Focus on Trust" },
-        { value: "≤3", label: "Steps to Bid" },
+        { value: "Public", label: "Every bid visible" },
+        { value: "3", label: "Steps to Bid" },
         { value: "7 Days", label: "Suggested Listing" },
         { value: "24/7", label: "Alerts & Support" },
       ],
@@ -505,7 +505,7 @@ export const translations: Record<"ar" | "en", TranslationType> = {
       participantsLabel: "Eligible Bidders",
       bidButton: "Bid Now (+250 JOD)",
       secureBadge: "🔒 Secure & Protected Bidding",
-      competitorsBadge: "🔥 Active Battle",
+      competitorsBadge: "Live bidding",
       autoExtendBadge: "⏱ Auto-Time Extension",
       bidLogYou: "You (New Bidder)",
       bidsTitle: "Instant Bid History",
@@ -517,7 +517,7 @@ export const translations: Record<"ar" | "en", TranslationType> = {
         {
           icon: "🚗",
           title: "Cars",
-          desc: "Detailed vehicle listings with real photos and secure registration transfers.",
+          desc: "Detailed vehicle listings with secure registration transfers.",
         },
         {
           icon: "🏠",
@@ -548,7 +548,7 @@ export const translations: Record<"ar" | "en", TranslationType> = {
     },
     howItWorks: {
       title: "How It Works",
-      subtitle: "Complete simplicity from listing to winning.",
+      subtitle: "From listing to close — clear steps.",
       steps: [
         {
           title: "Create Your Auction",
@@ -584,11 +584,11 @@ export const translations: Record<"ar" | "en", TranslationType> = {
     },
     faq: {
       title: "Frequently Asked Questions (FAQ)",
-      subtitle: "Everything you need to know about subscriptions, bidding, commissions, and guarantees on Mazzado",
+      subtitle: "Everything you need to know about subscriptions, bidding, commissions, and buyer protection on Mazzado",
       items: [
         {
           q: "Why is there a subscription for bidding?",
-          a: "The subscription guarantees the seriousness of the bidders. For only 1 JOD per month, you get unlimited bidding on fully verified items — this prevents fake bidding and maintains a fair auction environment for everyone."
+          a: "The subscription is a small commitment before bidding. For 1 JOD per month you get unlimited bidding on items reviewed by our team before they go live — and it helps reduce fake bidding."
         },
         {
           q: "How do I pay?",
@@ -613,7 +613,7 @@ export const translations: Record<"ar" | "en", TranslationType> = {
       ]
     },
     footer: {
-      desc: "The premier modern auction platform in the Hashemite Kingdom of Jordan. Sell faster, bid smarter, and win with absolute confidence.",
+      desc: "A public auction platform in Jordan — the market sets the price, and the fees are published.",
       links: {
         whyUs: "Why Us",
         categories: "Categories",

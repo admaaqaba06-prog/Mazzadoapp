@@ -3169,7 +3169,7 @@ export default function LandingView({ onEnter, whatsappUrl = SUPPORT_WHATSAPP_UR
               onClick={() => { emitLandingEvent('browse_cta_clicked', { location: 'sticky' }); onEnter(); }}
               className="flex-[2] basis-0 min-w-0"
             >
-              {lang === "ar" ? "ابدأ المزايدة — 1 دينار" : "Start Bidding — 1 JOD"}
+              {lang === "ar" ? "اشترك وزايد — العضوية 1 د.أ شهرياً" : "Subscribe to bid — 1 JOD/month"}
             </LandingButton>
             <LandingButton
               variant="secondary"
