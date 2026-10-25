@@ -128,3 +128,10 @@ The week-1 script still answers the other half: what happened to the bids.
   - Live customer-facing copy says **"٢–٤ دنانير تقريباً" / "~2–4 JD"** — now wrong, and it is on the public site.
   - The legal terms enumerate fees exhaustively **with no delivery clause at all**. Plan task 14 requires a Jordanian lawyer to review the wording before release.
   - Nothing ships until the two gaps above are closed AND the lawyer has reviewed — per plan task 14 and CLAUDE.md rule 8.
+
+- D-121 · 2026-10-25 · **External delivery fee fixed at 5 JOD** (was "5–10"). · Karam · **DECIDED**
+  Resolves the range half of D-120 — a payment screen shows one number, not a band.
+  **Still open:** what "external" covers. The first line already prices Amman to every governorate at 3 JOD, so the scope of the second is not determined by it. Needed before the fee can be rendered or written into terms.
+  **Unchanged:** no delivery-fee field exists in the codebase, live copy still says "~2–4 JD" plus free self-collection, and the legal terms carry no delivery clause. Plan task 14 requires a Jordanian lawyer before any of it ships.
+
+- D-110 · 2026-10-25 · **Landing-page copy rewrites APPROVED by Karam** ("عدل نصوص صفحه الهبوط"). Was PENDING since 2026-10-22. · Karam · **APPROVED**
