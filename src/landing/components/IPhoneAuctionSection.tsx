@@ -21,7 +21,23 @@ import { splitCountdown, hasAuctionStarted, parseAuctionStart, pad2 } from "../a
  * and the section stays in its pre-launch state rather than announcing that an
  * auction is open.
  */
-export const AUCTION_START_DATE = "2026-09-24T20:00:00+03:00";
+/*
+ * 15 November 2026, 20:00 Jordan time — the launch Karam set.
+ *
+ * THE DATE AND THE LOT ARE TWO SEPARATE FACTS. The previous value, 2026-09-24,
+ * had quietly passed over a month before anyone noticed, and because `started`
+ * was derived from the clock ALONE the section spent that month announcing
+ * «المزاد بدأ الآن» with a «زايد الآن» button over a lot that does not exist —
+ * on the section paid ad traffic lands on. The guard in the component now makes
+ * a passed date harmless: until AUCTION_ID is set, this value only decides what
+ * the countdown counts down to.
+ *
+ * ON 15 NOVEMBER, `iphoneAuctionGate.wiring.test.ts` STARTS FAILING if
+ * AUCTION_ID is still null. That is deliberate and it is the whole point: a
+ * build that stops is cheaper than another month of a promotional button that
+ * leads nowhere. Set AUCTION_ID to the real lot and it passes again.
+ */
+export const AUCTION_START_DATE = "2026-11-15T20:00:00+03:00";
 
 /**
  * The lot, once it exists in Firestore. Until then the buttons fall back to
@@ -125,7 +141,15 @@ export function IPhoneAuctionSection({ isAr, copy, onEnter, onRegister }: Props)
   const [imageFailed, setImageFailed] = React.useState(false);
   const startMs = React.useMemo(() => parseAuctionStart(AUCTION_START_DATE), []);
   const secondsLeft = useCountdownSeconds(startMs, true);
-  const started = hasAuctionStarted(secondsLeft);
+  // A date that has passed is not an auction. AUCTION_ID is what makes the lot
+  // real — `goToAuction` below falls through to Discover without it — so the
+  // clock alone must not be allowed to announce that bidding is open.
+  //
+  // The header comment already explains that a TYPO in the start date is safe,
+  // because the section stays pre-launch. This is the other half of that
+  // promise: a date that is perfectly well-formed and simply in the past, on a
+  // launch nobody wired up, was not safe at all.
+  const started = AUCTION_ID !== null && hasAuctionStarted(secondsLeft);
   const { days, hours, minutes, seconds } = splitCountdown(secondsLeft);
 
   // Until the lot exists in Firestore, "view details" and "bid now" both go to
