@@ -32,11 +32,8 @@ import {
   MessageCircle,
   Check,
   Search,
-  Eye,
   MapPin,
   Building2,
-  Quote,
-  Star,
   Heart,
   Share2,
   Flame,
@@ -44,7 +41,7 @@ import {
 } from "lucide-react";
 import { motion, useScroll, useInView, useSpring, AnimatePresence, useReducedMotion } from "motion/react";
 import { translations, TranslationType } from "./translations";
-import { formatCountdown, stepPrice as stepPriceBy, driftWatchers, antiSnipe } from "./heroSim";
+import { formatCountdown, stepPrice as stepPriceBy, antiSnipe } from "./heroSim";
 import { emitLandingEvent } from './landingAnalytics';
 import { useLandingAuctions } from './useLandingAuctions';
 import { priceLabel } from '../utils/bidLabels';
@@ -175,11 +172,11 @@ const ACTIVE_ITEMS = [
     icon: "🚗",
     titleAr: "تويوتا كامري 2022",
     titleEn: "Toyota Camry 2022",
-    detailsAr: "صور حقيقية · عمّان · مزاد مميز",
-    detailsEn: "Real photos · Amman · Premium Auction",
+    detailsAr: "مثال توضيحي · عمّان · مزاد مميز",
+    detailsEn: "Illustrative example · Amman · Premium Auction",
     image: "https://images.unsplash.com/photo-1621007947382-bb3c3994e3fb?auto=format&fit=crop&w=800&q=80",
-    badgeAr: "صور حقيقية",
-    badgeEn: "Real photos",
+    badgeAr: "مثال توضيحي",
+    badgeEn: "Illustrative example",
     basePrice: 14250,
     stepPrice: 250,
     timerStart: 138
@@ -203,11 +200,11 @@ const ACTIVE_ITEMS = [
     icon: "⌚",
     titleAr: "رولكس ديت جست 41",
     titleEn: "Rolex Datejust 41",
-    detailsAr: "41 ملم · ستيل · بالكرت والعلبة · صور حقيقية",
-    detailsEn: "41mm · Oystersteel · Box & Papers · Real photos",
+    detailsAr: "41 ملم · ستيل · بالكرت والعلبة · مثال توضيحي",
+    detailsEn: "41mm · Oystersteel · Box & Papers · Illustrative example",
     image: "https://images.unsplash.com/photo-1523170335258-f5ed11844a49?auto=format&fit=crop&w=800&q=80",
-    badgeAr: "صور حقيقية",
-    badgeEn: "Real photos",
+    badgeAr: "مثال توضيحي",
+    badgeEn: "Illustrative example",
     basePrice: 2150,
     stepPrice: 50,
     timerStart: 120
@@ -483,8 +480,6 @@ export default function LandingView({ onEnter, whatsappUrl = SUPPORT_WHATSAPP_UR
 
   // Live-room ambient sim state (hero right column)
   const prefersReducedMotion = useReducedMotion();
-  const [watchers, setWatchers] = useState<number>(1420);
-  const [bidCount, setBidCount] = useState<number>(12);
   const [priceBump, setPriceBump] = useState<boolean>(false);
   const [flashHit, setFlashHit] = useState<boolean>(false);
   const [extraAvatars, setExtraAvatars] = useState<number>(0);
@@ -527,11 +522,11 @@ export default function LandingView({ onEnter, whatsappUrl = SUPPORT_WHATSAPP_UR
   const [waitlist, setWaitlist] = useState<Array<{ name: string; contact: string; date: string }>>(() => {
     try {
       const stored = localStorage.getItem("mazzado_waitlist");
-      return stored ? JSON.parse(stored) : [
-        { name: lang === "ar" ? "رائد بني هاني" : "Raed Bani Hani", contact: "079***4512", date: "2026-07-13" },
-        { name: lang === "ar" ? "أمجد المعاني" : "Amjad Al-Maani", contact: "amj***@outlook.com", date: "2026-07-13" },
-        { name: lang === "ar" ? "لينا العباسي" : "Lina Al-Abbasi", contact: "078***8819", date: "2026-07-12" }
-      ];
+      // Empty, not seeded. Three invented Jordanians with masked phone numbers
+      // and sign-up dates used to stand here, so every first-time visitor was
+      // shown «قائمة المنضمين الأوائل (3)» before anyone had joined anything.
+      // The panel now appears only once the visitor adds their own row.
+      return stored ? JSON.parse(stored) : [];
     } catch {
       return [];
     }
@@ -697,16 +692,6 @@ export default function LandingView({ onEnter, whatsappUrl = SUPPORT_WHATSAPP_UR
     return () => clearInterval(cycleInterval);
   }, [isAutoCycling, prefersReducedMotion]);
 
-  // Watcher count gently drifts (ambient life). Reduced motion → static.
-  useEffect(() => {
-    if (prefersReducedMotion) return;
-    const interval = setInterval(() => {
-      if (typeof document !== "undefined" && document.hidden) return;
-      setWatchers((w) => driftWatchers(w));
-    }, 2600);
-    return () => clearInterval(interval);
-  }, [prefersReducedMotion]);
-
   // Landing bids: a new bid lands every ~2.5–4.5s (single self-scheduling engine).
   // Price steps + bump, "latest bid" flash, bid count climbs, toast blips, anti-snipe.
   // Reduced motion → no landing bids at all (calm static hero).
@@ -768,8 +753,8 @@ export default function LandingView({ onEnter, whatsappUrl = SUPPORT_WHATSAPP_UR
         return nextTimers;
       });
 
-      // Climbing bid count + occasional avatar pop
-      setBidCount((c) => Math.min(60, c + 1));
+      // Occasional avatar pop. The climbing bid count that stood here was
+      // rendered as "N مزايد نشط" and counted nobody.
       if (Math.random() < 0.4) setExtraAvatars((a) => Math.min(3, a + 1));
 
       // Price bump + "latest bid" flash
@@ -825,7 +810,6 @@ export default function LandingView({ onEnter, whatsappUrl = SUPPORT_WHATSAPP_UR
   // ARABIC_UI_DIGITS = 'western' precisely so a number does not change shape
   // with the language; the CountUp on line 691 already used en-US, so this was
   // also inconsistent with the counter sitting beside it.
-  const formatCount = (n: number) => n.toLocaleString("en-US");
 
   // formatTimeLeft and LiveMarketplaceSection hoisted to module scope (see above export)
 
@@ -1380,7 +1364,7 @@ export default function LandingView({ onEnter, whatsappUrl = SUPPORT_WHATSAPP_UR
                   <div className="bg-[#0A0A0A] text-white px-3.5 py-3 flex items-center justify-between">
                     <div className="min-w-0">
                       <span className="block text-[12px] font-bold font-alexandria truncate">{lang === "ar" ? "رولكس ديت جست 41" : "Rolex Datejust 41"}</span>
-                      <span className="block text-[9px] text-white/50 font-tajawal mt-0.5">{lang === "ar" ? "ساعات · مباشر" : "Watches · Live"}</span>
+                      <span className="block text-[9px] text-white/50 font-tajawal mt-0.5">{lang === "ar" ? "ساعات · مثال" : "Watches · Example"}</span>
                     </div>
                     <span dir="ltr" className="text-accent font-mono font-black text-sm flex items-center gap-1 shrink-0">
                       <span className={`w-1.5 h-1.5 rounded-full bg-accent ${prefersReducedMotion ? "" : "animate-pulse"}`} />
@@ -1410,7 +1394,7 @@ export default function LandingView({ onEnter, whatsappUrl = SUPPORT_WHATSAPP_UR
                   <div className="bg-[#0A0A0A] text-white px-3.5 py-3 flex items-center justify-between">
                     <div className="min-w-0">
                       <span className="block text-[12px] font-bold font-alexandria truncate">{lang === "ar" ? "بورش 911" : "Porsche 911"}</span>
-                      <span className="block text-[9px] text-white/50 font-tajawal mt-0.5">{lang === "ar" ? "مركبات · مباشر" : "Vehicles · Live"}</span>
+                      <span className="block text-[9px] text-white/50 font-tajawal mt-0.5">{lang === "ar" ? "مركبات · مثال" : "Vehicles · Example"}</span>
                     </div>
                     <span dir="ltr" className="text-accent font-mono font-black text-sm flex items-center gap-1 shrink-0">
                       <span className={`w-1.5 h-1.5 rounded-full bg-accent ${prefersReducedMotion ? "" : "animate-pulse"}`} />
@@ -1479,7 +1463,7 @@ export default function LandingView({ onEnter, whatsappUrl = SUPPORT_WHATSAPP_UR
                       className={`hero-toast absolute top-[120px] ${lang === "ar" ? "right-3" : "left-3"} z-20 bg-black/80 backdrop-blur-md border border-white/15 text-white text-[10.5px] font-bold font-tajawal px-2.5 py-1.5 rounded-full pointer-events-none shadow-lg`}
                       onAnimationEnd={() => setJustBidToast(null)}
                     >
-                      🔥 {justBidToast.name} {lang === "ar" ? "زايد الآن" : "just bid"}
+                      🔥 {lang === "ar" ? "مزايدة جديدة" : "New bid"}
                     </div>
                   )}
 
@@ -1491,20 +1475,18 @@ export default function LandingView({ onEnter, whatsappUrl = SUPPORT_WHATSAPP_UR
                         <div className="relative flex shrink-0">
                           <img 
                             src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=100&q=80" 
-                            alt={lang === 'ar' ? 'بث مزادو' : 'Mazzado Streamer'} 
+                            alt="" aria-hidden="true" 
                             className="w-7 h-7 rounded-full object-cover border-2 border-accent" 
                           />
                           <span className={`absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-emerald-500 border-2 border-black ${prefersReducedMotion ? "" : "animate-pulse"}`} />
                         </div>
                         <div className={`flex flex-col ${lang === "ar" ? "text-right" : "text-left"}`}>
                           <span className="text-xs font-bold text-white font-alexandria leading-none flex items-center gap-1">
-                            {lang === "ar" ? "مزادو مباشر" : "Mazzado Live"}
+                            {lang === "ar" ? "محاكاة مزادو" : "Mazzado simulation"}
                             <Sparkles className="w-3 h-3 text-amber-400" />
                           </span>
                           <span className="text-[9px] text-gray-300 font-tajawal flex items-center gap-1 mt-0.5">
-                            <Eye className="w-2.5 h-2.5 text-emerald-400" />
-                            <span dir="ltr" className="font-mono" style={{ fontVariantNumeric: "tabular-nums" }}>{formatCount(watchers)}</span>
-                            {lang === "ar" ? "يشاهدون" : "watching"}
+                            {lang === "ar" ? "هيك بتشتغل المزايدة" : "This is how bidding works"}
                           </span>
                         </div>
                       </div>
@@ -1512,7 +1494,7 @@ export default function LandingView({ onEnter, whatsappUrl = SUPPORT_WHATSAPP_UR
                       {/* Live Badge Pill */}
                       <div className={`flex items-center gap-1.5 px-3 py-1 rounded-full bg-accent text-white text-[11px] font-bold font-tajawal shadow-lg shadow-accent/40 border border-white/20 ${prefersReducedMotion ? "" : "animate-pulse"}`}>
                         <span className={`w-2 h-2 rounded-full bg-surface-raised ${prefersReducedMotion ? "" : "animate-ping"}`} />
-                        <span>{lang === "ar" ? "بث المزاد 🔴" : "LIVE 🔴"}</span>
+                        <span>{lang === "ar" ? "عرض توضيحي" : "Demo"}</span>
                       </div>
                     </div>
                   </div>
@@ -1527,7 +1509,7 @@ export default function LandingView({ onEnter, whatsappUrl = SUPPORT_WHATSAPP_UR
                         className="bg-amber-500/90 text-black backdrop-blur-md px-3 py-1.5 rounded-xl text-xs font-bold font-tajawal shadow-lg flex items-center gap-1.5 border border-amber-300"
                       >
                         <Bell className="w-3.5 h-3.5 text-black animate-ring shrink-0" />
-                        <span>{lang === "ar" ? "⏱ تم تمديد الوقت دقيقة إضافية للمنافسة!" : "⏱ Extended +1 min for live bids!"}</span>
+                        <span>{lang === "ar" ? "⏱ وصلت مزايدة بآخر الثواني — تمدد الوقت" : "⏱ A bid landed in the final seconds — time extended"}</span>
                       </motion.div>
                     )}
 
@@ -1549,7 +1531,7 @@ export default function LandingView({ onEnter, whatsappUrl = SUPPORT_WHATSAPP_UR
                           {lang === "ar" ? currentItem.badgeAr : currentItem.badgeEn}
                         </span>
                         <span className="text-[10px] text-gray-300 font-tajawal">
-                          {lang === "ar" ? "الرقم المرجعي: #JO-22419" : "Ref: #JO-22419"}
+                          {lang === "ar" ? "مثال توضيحي" : "Illustrative example"}
                         </span>
                       </div>
                       <h3 className="text-lg font-bold text-white font-alexandria leading-snug drop-shadow-md">
@@ -1617,10 +1599,8 @@ export default function LandingView({ onEnter, whatsappUrl = SUPPORT_WHATSAPP_UR
                     <div className="flex items-center justify-between text-[11px] text-gray-300 font-tajawal px-1 pt-0.5">
                       <div className="flex items-center gap-1.5">
                         <div className="flex -space-x-1.5 rtl:space-x-reverse">
-                          <img src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=100&q=80" alt={lang === 'ar' ? 'مزايد' : 'Bidder'} className="w-4 h-4 rounded-full object-cover border border-black" />
-                          <img src="https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=100&q=80" alt={lang === 'ar' ? 'مزايد' : 'Bidder'} className="w-4 h-4 rounded-full object-cover border border-black" />
-                          <img src="https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=100&q=80" alt={lang === 'ar' ? 'مزايد' : 'Bidder'} className="w-4 h-4 rounded-full object-cover border border-black" />
-                          {/* Occasional avatar pops in as bids land */}
+                          {/* Abstract shapes, not people. Three stock portraits of real
+                              strangers used to stand here labelled «مزايد». */}
                           {Array.from({ length: extraAvatars }).map((_, i) => (
                             <span
                               key={i}
@@ -1629,14 +1609,19 @@ export default function LandingView({ onEnter, whatsappUrl = SUPPORT_WHATSAPP_UR
                             />
                           ))}
                         </div>
-                        <span dir="ltr" className="text-[10px] text-gray-300 font-bold" style={{ fontVariantNumeric: "tabular-nums" }}>
-                          {formatCount(bidCount)} {lang === "ar" ? "مزايد نشط" : "bidders active"}
+                        <span className="text-[10px] text-gray-300 font-bold font-tajawal">
+                          {lang === "ar" ? "مثال توضيحي" : "Illustrative example"}
                         </span>
                       </div>
 
-                      <span className="text-[10px] font-bold text-emerald-400 flex items-center gap-1">
-                        <span className={`w-1.5 h-1.5 rounded-full bg-emerald-400 ${prefersReducedMotion ? "" : "animate-ping"}`} />
-                        {lang === "ar" ? "متواجدين الآن" : "Live Now"}
+                      {/* White-at-50, not one of the light grays: the theme
+                          ratchet in src/theme.guard.test.ts caps how many of
+                          those remain, and a label added today should not spend
+                          one. (The ratchet reads the file as text, so naming the
+                          class here would have counted too.) The card is always
+                          dark, so this is the equivalent. */}
+                      <span className="text-[10px] font-bold text-white/50 font-tajawal">
+                        {lang === "ar" ? "محاكاة" : "Simulation"}
                       </span>
                     </div>
                   </div>
@@ -1826,7 +1811,7 @@ export default function LandingView({ onEnter, whatsappUrl = SUPPORT_WHATSAPP_UR
                         {lang === "ar" ? "نجهّزه ونعرضه" : "Prepare & List"}
                       </h3>
                       <p className="text-sm text-fg-muted font-tajawal leading-relaxed">
-                        {lang === "ar" ? "فريقنا يتأكد من دقة ووصف المنتج" : "Our expert team verifies the accuracy and description of the product."}
+                        {lang === "ar" ? "فريقنا يراجع الإعلان قبل النشر" : "Our team reviews the listing before it goes live."}
                       </p>
                       
                       <div className="hidden md:block absolute top-[2.75rem] -right-3 translate-x-1/2 z-10 text-accent/40 animate-pulse">
@@ -2075,62 +2060,15 @@ export default function LandingView({ onEnter, whatsappUrl = SUPPORT_WHATSAPP_UR
           </div>
         </section>
 
-        {/* Real Customer Testimonials Section */}
+        {/* Terms and protections bar. The testimonials that stood above it were
+            invented — three quotes attributed to named people in named cities,
+            under a heading promising real stories. They are gone until there is
+            real, attributable feedback from a completed sale to put here. */}
         <section id="testimonials" className="py-20 bg-surface-sunken/30 border-t border-line">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <Reveal>
-              <h2 className="text-4xl font-bold text-center text-fg font-alexandria mb-12">
-                {lang === "ar" ? "قصص حقيقية من ناس زيك" : "Real Stories From People Like You"}
-              </h2>
-            </Reveal>
-
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              {[
-                {
-                  ar: "بعت سيارتي خلال 3 أيام وبسعر أعلى مما توقعت. العمولة بسيطة جداً مقارنة بالراحة.",
-                  en: "I sold my car in just 3 days and for a higher price than I expected. The commission is very small compared to the convenience.",
-                  nameAr: "أحمد. م — عمّان",
-                  nameEn: "Ahmad M. — Amman"
-                },
-                {
-                  ar: "اشتريت آيفون واستلمته مطابق تماماً للوصف. ما دفعت للبائع إلا بعد ما تأكدت بنفسي.",
-                  en: "I bought an iPhone and received it exactly matching the description. I didn't pay the seller until I verified it myself.",
-                  nameAr: "سارة. ح — إربد",
-                  nameEn: "Sarah H. — Irbid"
-                },
-                {
-                  ar: "زرت المكتب قبل ما أعرض غرفة نوم، واطمنيت إنهم فاحصين كل التفاصيل.",
-                  en: "I visited the office before offering a bedroom set, and felt assured knowing they inspect every single detail.",
-                  nameAr: "خليل. ع — الزرقاء",
-                  nameEn: "Khalil A. — Zarqa"
-                }
-              ].map((testi, idx) => (
-                <Reveal key={idx} delay={idx * 0.15}>
-                  <div className="bg-surface-raised border border-line rounded-2xl p-8 flex flex-col justify-between h-full shadow-sm hover:shadow-md transition-all duration-300 relative group">
-                    <div>
-                      <Quote className="w-8 h-8 text-accent mb-5 shrink-0 transform -scale-x-100" />
-                      <p className="text-fg font-tajawal text-base leading-relaxed mb-6 font-medium">
-                        {lang === "ar" ? testi.ar : testi.en}
-                      </p>
-                    </div>
-                    <div>
-                      <span className="block text-xs text-fg-muted font-tajawal font-semibold">
-                        {lang === "ar" ? testi.nameAr : testi.nameEn}
-                      </span>
-                      <div className="flex gap-1 mt-2">
-                        {[...Array(5)].map((_, i) => (
-                          <Star key={i} className="w-4 h-4 text-accent fill-accent" />
-                        ))}
-                      </div>
-                    </div>
-                  </div>
-                </Reveal>
-              ))}
-            </div>
-
             {/* Statistics and Badges Bar */}
             <Reveal delay={0.4}>
-              <div className="mt-16 bg-[#0A0A0A] text-white rounded-2xl p-8 border border-gray-800 shadow-xl">
+              <div className="bg-[#0A0A0A] text-white rounded-2xl p-8 border border-gray-800 shadow-xl">
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-6 text-center">
                   {[
                     // Terms, not counts. The three that stood here — 1,250+ sales,
@@ -2155,7 +2093,7 @@ export default function LandingView({ onEnter, whatsappUrl = SUPPORT_WHATSAPP_UR
                       arVal: "بدون تأمين",
                       enVal: "No deposit",
                       arLabel: "ما في وديعة للمزايدة",
-                      enLabel: "Nothing to pay to bid"
+                      enLabel: "No deposit to bid"
                     },
                     {
                       arVal: <Lock className="w-8 h-8 sm:w-9 sm:h-9 inline-block" aria-hidden="true" />,
@@ -2215,8 +2153,8 @@ export default function LandingView({ onEnter, whatsappUrl = SUPPORT_WHATSAPP_UR
                         en: "Payment is never disbursed until you inspect the item and approve its specifications."
                       },
                       {
-                        ar: "إذا كان في مشكلة أو عدم تطابق قبل تأكيدك للاستلام، مزاد يتوسط ويرجّع لك مبلغك المحجوز.",
-                        en: "If there is a problem or mismatch before you confirm receipt, Mazad mediates and returns your held payment."
+                        ar: "إذا كان في مشكلة أو عدم تطابق قبل تأكيدك للاستلام، تواصل معنا وبنتوسّط لحلّها قبل ما يوصل المبلغ للبائع.",
+                        en: "If there is a problem or mismatch before you confirm receipt, contact us and we will mediate before the payment reaches the seller."
                       }
                     ].map((point, idx) => (
                       <div key={idx} className="flex items-start gap-3">
@@ -2394,8 +2332,8 @@ export default function LandingView({ onEnter, whatsappUrl = SUPPORT_WHATSAPP_UR
                 </h2>
                 <p className="text-fg text-sm sm:text-base font-tajawal max-w-xl mx-auto leading-relaxed">
                   {lang === "ar" 
-                    ? "ادفع بسهولة عبر كليك. ألغِ اشتراكك في أي وقت." 
-                    : "Pay easily via CliQ. Cancel your subscription at any time."}
+                    ? "ادفع بسهولة عبر كليك. كل اشتراك لمدة محددة ولا يتجدد تلقائياً." 
+                    : "Pay easily via CliQ. Each plan runs for a fixed term and does not renew automatically."}
                 </p>
               </div>
             </Reveal>

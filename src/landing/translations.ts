@@ -192,7 +192,7 @@ export const translations: Record<"ar" | "en", TranslationType> = {
         { value: "تمديد تلقائي", label: "إذا زايدت بآخر الثواني" },
       ],
       liveBadge: "مباشر الآن",
-      verifiedSeller: "✓ بائع موثق",
+      verifiedSeller: "✓ إعلان مُراجَع",
       carTitle: "تويوتا كامري 2022",
       carDetails: "مثال توضيحي · عمّان · مزاد مميز",
       currentPrice: "السعر الحالي",
@@ -204,7 +204,7 @@ export const translations: Record<"ar" | "en", TranslationType> = {
     trust: {
       badge: "الأمان والثقة",
       title: "مزادات حقيقية. تجربة آمنة وواضحة.",
-      subtitle: "في مزادو، كل بائع موثّق، وكل منتج واضح، وكل مزايدة تتم بشفافية كاملة.",
+      subtitle: "في مزادو، كل إعلان مُراجَع قبل النشر، وكل منتج واضح، وكل مزايدة ظاهرة للجميع.",
       cards: [
         {
           icon: "🛡️",
@@ -240,8 +240,8 @@ export const translations: Record<"ar" | "en", TranslationType> = {
       ],
       smartTitle: "Mazzado - ذكي",
       smartPoints: [
-        "منافسة منظمة وعادلة ترفع السعر تلقائياً لصالحك",
-        "مزايدون موثوقون وعضوية مدفوعة تضمن جدية الجميع",
+        "منافسة علنية ومنظمة — الطلب هو اللي بيحدد السعر، مش الفصال",
+        "المزايدة تتطلب عضوية مدفوعة فعّالة",
         "اكتشاف السعر الحقيقي للمنتج بدقة حسب حجم الطلب",
         "وقت بيع محدد بدقة مع إشعارات ذكية وشفافية مطلقة",
       ],
@@ -297,7 +297,7 @@ export const translations: Record<"ar" | "en", TranslationType> = {
         {
           icon: "🔢",
           title: "أرقام مميزة",
-          desc: "أرقام لوحات سيارات وأرقام هواتف موثقة قانونياً ومنظمة.",
+          desc: "أرقام لوحات سيارات وأرقام هواتف مميزة، مع إجراءات نقل منظمة.",
         },
       ],
     },
@@ -382,7 +382,7 @@ export const translations: Record<"ar" | "en", TranslationType> = {
       subtitle: "سلع معروضة تُباع الآن — هكذا ستظهر سلعتك أمام المشترين.",
       currentBid: "أعلى مزايدة",
       bids: "مزايدة",
-      verified: "موثّقة",
+      verified: "مُراجَعة",
       endingSoon: "ينتهي قريباً",
       beTheFirst: "كن أول مزايد",
       viewBtn: "شاهد المزاد",
@@ -437,7 +437,7 @@ export const translations: Record<"ar" | "en", TranslationType> = {
         { value: "Auto-extend", label: "If you bid in the final seconds" },
       ],
       liveBadge: "Live Now",
-      verifiedSeller: "✓ Verified Seller",
+      verifiedSeller: "✓ Listing reviewed",
       carTitle: "Toyota Camry 2022",
       carDetails: "Illustrative example · Amman · Premium Auction",
       currentPrice: "Current Price",
@@ -449,7 +449,7 @@ export const translations: Record<"ar" | "en", TranslationType> = {
     trust: {
       badge: "Trust & Safety",
       title: "Real auctions. A safe and transparent experience.",
-      subtitle: "At MAZZADO, every seller is verified, every product is clearly presented, and every bid is fully transparent.",
+      subtitle: "At MAZZADO, every listing is reviewed before it goes live, every product is clearly presented, and every bid is visible to everyone.",
       cards: [
         {
           icon: "🛡️",
@@ -485,8 +485,8 @@ export const translations: Record<"ar" | "en", TranslationType> = {
       ],
       smartTitle: "Mazzado - Smart",
       smartPoints: [
-        "Organized, fair competition driving prices up automatically",
-        "Verified, members-only bidders to ensure serious participation",
+        "Organized, public competition — demand sets the price, not haggling",
+        "Bidding requires an active paid membership",
         "Accurate price discovery based purely on actual demand",
         "Strictly set sale window, smart notifications, and full transparency",
       ],
@@ -522,12 +522,12 @@ export const translations: Record<"ar" | "en", TranslationType> = {
         {
           icon: "🏠",
           title: "Real Estate",
-          desc: "Apartments, investment lands, and commercial shops with legal verification.",
+          desc: "Apartments, investment lands, and commercial shops.",
         },
         {
           icon: "💻",
           title: "Electronics",
-          desc: "Premium phones, professional laptops, and smart devices with certified checks.",
+          desc: "Premium phones, professional laptops, and smart devices.",
         },
         {
           icon: "🏗️",
@@ -579,7 +579,7 @@ export const translations: Record<"ar" | "en", TranslationType> = {
       formErrorEmailPhone: "Please enter a valid email or active Jordanian phone number (079, 078, 077)",
       formErrorEmpty: "Please fill in the contact field (Email or Phone)",
       experimentalNote: "Note: This is a prototype form; data is saved locally in your browser's local storage.",
-      registeredTitle: "Jordan's Early Adopters List",
+      registeredTitle: "Saved on this device",
       emptyRegistered: "Be the first to join from Jordan!",
     },
     faq: {
@@ -627,7 +627,7 @@ export const translations: Record<"ar" | "en", TranslationType> = {
       subtitle: "Items selling now — this is where your item shows up for buyers.",
       currentBid: "Current bid",
       bids: "bids",
-      verified: "Verified",
+      verified: "Reviewed",
       endingSoon: "Ending soon",
       beTheFirst: "Be the first",
       viewBtn: "View auction",

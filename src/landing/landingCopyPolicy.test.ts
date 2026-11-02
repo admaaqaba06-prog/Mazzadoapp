@@ -35,8 +35,30 @@ function allStrings(): string {
   return quoted.join('\n');
 }
 
+/**
+ * The translation table is NOT where most of this page's copy lives.
+ *
+ * THE HOLE THIS CLOSES. The first pass of this guard read translations.ts and
+ * nothing else, so it certified a page it had only partly looked at. A large
+ * share of the landing copy is written inline in LandingView.tsx — as
+ * `lang === "ar" ? "…" : "…"` ternaries and as hardcoded data arrays — and all
+ * of it was invisible here. The sharpest example: the pass rewrote
+ * `hero.carDetails` to «مثال توضيحي» and the hero renders
+ * `ACTIVE_ITEMS[].detailsAr` instead, so «صور حقيقية» stayed on screen over
+ * stock photography while this file reported the claim removed. A guard that
+ * reads one of the two files does not guard the page; it guards a file.
+ *
+ * So the claim checks below read BOTH. LandingView.tsx also holds class names
+ * and URLs, which is fine: these assertions match claim phrases, not words.
+ */
+function allCopy(): string {
+  const inView = LANDING_VIEW.match(/"(?:[^"\\]|\\.)*"/g) || [];
+  expect(inView.length, 'parsed no strings out of LandingView.tsx').toBeGreaterThan(100);
+  return allStrings() + '\n' + inView.join('\n');
+}
+
 describe('the landing page does not make claims the product cannot back', () => {
-  const copy = () => allStrings();
+  const copy = () => allCopy();
 
   it('claims no price superlative', () => {
     // The old H1 was "اشترِ بأرخص سعر." — an unsubstantiated superlative that
@@ -47,7 +69,15 @@ describe('the landing page does not make claims the product cannot back', () => 
   it('guarantees nothing', () => {
     // "نضمن" — Mazzado holds the payment, which is a mechanism, not a promise
     // about the outcome. The distinction is the whole trust proposition.
-    expect(copy()).not.toMatch(/نضمن|guarantee/i);
+    //
+    // THE FORMS MATTER. The first pass matched «نضمن» only, so «عضوية مدفوعة
+    // تضمن جدية الجميع» walked straight through it and stayed on the page in
+    // the comparison table — the one guarantee the product's own data refutes
+    // (27 of 53 paying members never placed a bid). A guard that catches one
+    // conjugation of a verb catches nothing. If «تضمن» ever trips on its other
+    // sense — "to include" — rewrite the sentence rather than the guard.
+    expect(copy()).not.toMatch(/نضمن|تضمن|يضمن|مضمون|guarantee/i);
+    expect(copy()).not.toMatch(/to ensure (serious|safe|fair)/i);
   });
 
   it('does not claim sellers are identity-verified', () => {
@@ -56,6 +86,52 @@ describe('the landing page does not make claims the product cannot back', () => 
     expect(copy()).not.toMatch(/بائعون موثّقون|بائعون موثوقون|verified sellers/i);
     expect(copy()).not.toMatch(/نتحقق من هوية البائع|verify every seller/i);
     expect(copy()).not.toMatch(/موثقة بالكامل|fully verified/i);
+
+    // THE SAME CLAIM, FOUR MORE TIMES. The first pass rewrote the trust CARD
+    // to «كل إعلان مُراجَع» and left the section subtitle one line above it
+    // still saying «كل بائع موثّق» — both rendered on screen together — plus
+    // «✓ موثّقة» on every card in the live grid (LandingView.tsx:332), which
+    // is the most-repeated verification claim on the page.
+    expect(copy()).not.toMatch(/كل بائع موثّق|every seller is verified/i);
+    expect(copy()).not.toMatch(/مزايدون موثوقون|بائع موثق|verified seller\b/i);
+    expect(copy()).not.toMatch(/verified: "موثّقة"|verified: "Verified"/);
+  });
+
+  it('does not claim the item itself is checked', () => {
+    // Reviewing a LISTING is not inspecting an ITEM. LandingView.tsx's own
+    // comment already said «we do not claim to inspect every lot ourselves»,
+    // while the seller step card two thousand lines away promised an expert
+    // team verifies the product's accuracy.
+    expect(copy()).not.toMatch(/يتأكد من دقة ووصف المنتج|verifies the accuracy/i);
+    expect(copy()).not.toMatch(/certified checks|legal verification/i);
+    expect(copy()).not.toMatch(/فاحصين كل التفاصيل|inspect every single detail/i);
+  });
+
+  it('promises mediation, not a refund', () => {
+    // The escrow bullet promised the held money back whenever there is a
+    // problem; the FAQ on the same page promised only mediation. Of the two,
+    // the product can keep the second.
+    expect(copy()).not.toMatch(/يرجّع لك مبلغك|returns your held payment/i);
+  });
+
+  it('does not say bidding is free on a page that sells a membership', () => {
+    // «ما في وديعة للمزايدة» is about the DEPOSIT and is true. The English
+    // twin generalised it to "Nothing to pay to bid" — the pay-to-bid framing
+    // inverted, on the page that sells the 1 JOD membership.
+    expect(copy()).not.toMatch(/nothing to pay to bid|المزايدة مجانية/i);
+  });
+
+  it('does not offer a cancellation that does not exist', () => {
+    // Fixed 30/180/365-day grants against a one-off CliQ transfer. No
+    // recurring billing, no cancel path, no refund path in src/ or functions/.
+    expect(copy()).not.toMatch(/ألغِ اشتراكك|cancel your subscription/i);
+  });
+
+  it('calls a reviewed listing reviewed', () => {
+    // The deleting half of the guard above has a matching half here, so the
+    // badge cannot be quietly dropped instead of corrected.
+    expect(copy()).toMatch(/مُراجَعة/);
+    expect(copy()).toMatch(/"Reviewed"/);
   });
 
   it('promises no delivery window it cannot hold', () => {
