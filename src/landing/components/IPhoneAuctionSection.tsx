@@ -22,17 +22,22 @@ import { splitCountdown, hasAuctionStarted, parseAuctionStart, pad2 } from "../a
  * auction is open.
  */
 /*
- * PLACEHOLDER — Karam sets the real instant. Thursday 20:00 is chosen to match
- * the weekly-auction close in the growth plan, not because this date is fixed.
+ * 15 November 2026, 20:00 Jordan time — the launch Karam set.
  *
- * The previous value, 2026-09-24, had quietly passed over a month before anyone
- * noticed, and because `started` was derived from the clock ALONE the section
- * spent that month announcing «المزاد بدأ الآن» with a «زايد الآن» button over
- * a lot that does not exist — on a section paid ad traffic lands on. The guard
- * below now makes a passed date harmless; this value only decides what the
- * countdown counts down to.
+ * THE DATE AND THE LOT ARE TWO SEPARATE FACTS. The previous value, 2026-09-24,
+ * had quietly passed over a month before anyone noticed, and because `started`
+ * was derived from the clock ALONE the section spent that month announcing
+ * «المزاد بدأ الآن» with a «زايد الآن» button over a lot that does not exist —
+ * on the section paid ad traffic lands on. The guard in the component now makes
+ * a passed date harmless: until AUCTION_ID is set, this value only decides what
+ * the countdown counts down to.
+ *
+ * ON 15 NOVEMBER, `iphoneAuctionGate.wiring.test.ts` STARTS FAILING if
+ * AUCTION_ID is still null. That is deliberate and it is the whole point: a
+ * build that stops is cheaper than another month of a promotional button that
+ * leads nowhere. Set AUCTION_ID to the real lot and it passes again.
  */
-export const AUCTION_START_DATE = "2026-12-10T20:00:00+03:00";
+export const AUCTION_START_DATE = "2026-11-15T20:00:00+03:00";
 
 /**
  * The lot, once it exists in Firestore. Until then the buttons fall back to
