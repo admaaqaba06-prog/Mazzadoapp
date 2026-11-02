@@ -143,7 +143,14 @@ describe('the landing page does not make claims the product cannot back', () => 
     // THE BAN RISK. A ~1 JOD opening price next to a paid-to-bid membership is
     // the defining shape of a bidding-fee auction. The membership PRICE may say
     // 1 JOD — that is true and protected by D-002 — but an opening BID may not.
+    //
+    // The iPhone lot now opens at 50 JOD (Karam, 2026-11-02). That is a real
+    // opening price rather than a token one, which is what takes the lot out of
+    // this shape — the objection was never to opening below market, which every
+    // auction does, but to an entry price so small it reads as the fee, not the
+    // price. The single-digit openings below stay forbidden.
     expect(copy()).not.toMatch(/يبدأ من 1 دينار|opening bid: just|من 1 دينار فقط/i);
+    expect(copy()).not.toMatch(/سعر الافتتاح [1-9] د\.أ(?!\d)|opening price: [1-9] JOD(?!\d)/i);
     expect(LANDING_VIEW).not.toMatch(/ابدأ المزايدة — 1 دينار|Start Bidding — 1 JOD/);
   });
 
